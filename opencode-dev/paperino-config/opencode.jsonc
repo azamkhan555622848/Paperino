@@ -1,0 +1,37 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Default writing model — change freely in the model picker.
+  "model": "openrouter/anthropic/claude-sonnet-5",
+  // Paperino does not use InteJer's hardware/IoT MCP servers, which come from the
+  // shared global config (~/.config/opencode/opencode.jsonc). Disable them here so
+  // the paper-writing agent has a clean tool surface — without touching the global file.
+  "mcp": {
+    "freecad": { "enabled": false },
+    "kicad": { "enabled": false },
+    "partfetch": { "enabled": false },
+    "platformio": { "enabled": false },
+    "playwright": { "enabled": false },
+    "mongodb": { "enabled": false },
+    "thingsboard": { "enabled": false },
+    "embedded-debugger": { "enabled": false },
+    "stitch": { "enabled": false }
+  },
+  // Skills are discovered from the global config dir too (skill/index.ts reads
+  // config.directories(), which always includes ~/.config/opencode). Deny InteJer's
+  // hardware/IoT skills so the paper-writing agent has a clean skill surface.
+  // Permission.evaluate uses findLast, so LATER keys win: allow-all first, denies after.
+  "permission": {
+    "skill": {
+      "*": "allow",
+      "pcb-*": "deny",
+      "schematic-*": "deny",
+      "esp32-*": "deny",
+      "stm32-*": "deny",
+      "zephyr-*": "deny",
+      "arduino-*": "deny",
+      "*-iot": "deny",
+      "mobile-developer": "deny",
+      "flutter-expert": "deny"
+    }
+  }
+}
