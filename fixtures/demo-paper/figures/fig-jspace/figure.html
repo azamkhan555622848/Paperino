@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    /* Layout only. Every colour/stroke comes from tokens.css. */
+    /* the gap must clear the swoopy loops AND the "Layers" label that sits beside them */
+    #fig-root { display: flex; gap: 130px; padding: 28px 28px 28px 190px; align-items: flex-start; }
+
+    /* left: the layer stack */
+    .stack { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .pill { width: 190px; text-align: center; padding: 8px 0; }
+    #col {
+      position: relative; width: 190px; height: 620px;
+      border: var(--stroke-thin) solid var(--border); border-radius: 14px; background: var(--surface);
+    }
+    #bar { position: absolute; left: 50%; transform: translateX(-50%); top: 22px; bottom: 22px; width: 14px; border-radius: 7px; background: var(--border); }
+    #jspace { position: absolute; left: 50%; transform: translateX(-50%); top: 170px; width: 22px; height: 280px; }
+    .span { position: absolute; left: 6px; width: 1px; }
+    #motor-span { top: 26px; height: 130px; }
+    #workspace-span { top: 170px; height: 280px; }
+    #sensory-span { top: 464px; height: 130px; }
+    .loop { position: absolute; right: 0; width: 2px; height: 2px; }
+    #layers-label { position: absolute; right: -108px; top: 300px; font-size: var(--fs-label); }
+
+    /* right: the three property cards */
+    .cards { display: flex; flex-direction: column; gap: 16px; width: 560px; }
+    .strip { display: flex; gap: 10px; align-items: center; margin-top: 12px; height: 74px; }
+    #mini-jspace { width: 110px; height: 100%; border-radius: 6px; }
+    #mini-other { flex: 1; height: 100%; border-radius: 6px; background: var(--surface); border: var(--stroke-thin) solid var(--border); }
+    .strip-labels { display: flex; gap: 10px; margin-top: 6px; font-size: var(--fs-small); }
+    .strip-labels span:first-child { width: 110px; }
+
+    .broadcast { display: grid; grid-template-columns: 130px 1fr 130px; align-items: center; gap: 12px; margin-top: 14px; height: 120px; }
+    .stubs { display: flex; flex-direction: column; gap: 10px; }
+    .stub { height: 26px; border-radius: 5px; background: var(--surface); border: var(--stroke-thin) solid var(--border); }
+    /* the J-space node itself: a small box the circuits compose into, not a band */
+    #b-center { width: 96px; height: 44px; margin: 0 auto; border-radius: 6px; }
+    .broadcast-labels { display: flex; justify-content: space-between; font-size: var(--fs-small); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div id="fig-root">
+    <div class="stack">
+      <div class="card pill" id="pill-out">Output</div>
+      <div id="col">
+        <div id="bar"></div>
+        <div id="jspace"></div>
+        <div class="span" id="motor-span"></div>
+        <div class="span" id="workspace-span"></div>
+        <div class="span" id="sensory-span"></div>
+        <div class="loop" id="loop-1a" style="top: 60px"></div>
+        <div class="loop" id="loop-1b" style="top: 170px"></div>
+        <div class="loop" id="loop-2a" style="top: 200px"></div>
+        <div class="loop" id="loop-2b" style="top: 310px"></div>
+        <div class="loop" id="loop-3a" style="top: 340px"></div>
+        <div class="loop" id="loop-3b" style="top: 450px"></div>
+        <div class="loop" id="loop-4a" style="top: 480px"></div>
+        <div class="loop" id="loop-4b" style="top: 570px"></div>
+        <div class="muted" id="layers-label">Layers</div>
+      </div>
+      <div class="card pill" id="pill-in">Input</div>
+    </div>
+
+    <div class="cards">
+      <div class="card" id="card-stage">
+        <h3>Intermediate processing stage</h3>
+        <p>J-space carries workspace-like content only at intermediate depths</p>
+      </div>
+
+      <div class="card" id="card-capacity">
+        <h3>Limited capacity</h3>
+        <p>Few concepts active at once; most features lie outside it</p>
+        <div class="strip">
+          <div id="mini-jspace"></div>
+          <div id="mini-other"></div>
+        </div>
+        <div class="strip-labels muted"><span>J-space</span><span>Other representational features</span></div>
+      </div>
+
+      <div class="card" id="card-broadcast">
+        <h3>Broadcast format</h3>
+        <p>J-lens vectors compose with many upstream and downstream weights</p>
+        <div class="broadcast">
+          <div class="stubs">
+            <div class="stub" id="up-1"></div>
+            <div class="stub" id="up-2"></div>
+            <div class="stub" id="up-3"></div>
+          </div>
+          <div id="b-center"></div>
+          <div class="stubs">
+            <div class="stub" id="down-1"></div>
+            <div class="stub" id="down-2"></div>
+            <div class="stub" id="down-3"></div>
+          </div>
+        </div>
+        <div class="broadcast-labels muted"><span>Upstream circuits</span><span>Downstream circuits</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { arrow, brace, highlight, figReady } from "../lib/annot.js"
+
+    // the J-space band, and its miniature in the capacity card
+    highlight("#jspace", { style: "dashed", tone: "accent" })
+    highlight("#mini-jspace", { style: "dashed", tone: "accent" })
+    highlight("#b-center", { style: "dashed", tone: "accent" })
+
+    // depth regions
+    brace("#motor-span", { side: "left", label: "Motor\ndetermining\nthe output" })
+    brace("#workspace-span", { side: "left", label: "Workspace\nlives here" })
+    brace("#sensory-span", { side: "left", label: "Sensory\ninput parsing,\npreprocessing" })
+
+    // swoopy layer loops running up the right-hand edge (negative bow = bulge outward)
+    for (const i of [1, 2, 3, 4]) arrow(`#loop-${i}a`, `#loop-${i}b`, { bow: -0.55, side: "right" })
+
+    // broadcast: many upstream circuits compose into J-space, then fan out downstream
+    for (const i of [1, 2, 3]) arrow(`#up-${i}`, "#b-center", { bow: 0.05 })
+    for (const i of [1, 2, 3]) arrow("#b-center", `#down-${i}`, { bow: 0.05 })
+
+    figReady()
+  </script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    /* Layout only. Colours come from tokens.css; records come from data.json. */
+    #title { padding: 18px 18px 0; font-size: var(--fs-body); font-weight: 600; }
+    #fig-root { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; padding: 14px 18px 18px; }
+    .card { display: flex; flex-direction: column; }
+    .label { font-size: var(--fs-small); letter-spacing: 0.04em; margin-bottom: 10px; }
+    .prompt {
+      background: var(--bg); border: var(--stroke-thin) solid var(--border); border-radius: 5px;
+      padding: 7px 9px; font-family: var(--font-mono); font-size: var(--fs-small); line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+    .tok { border: var(--stroke-thin) solid var(--border-strong); border-radius: 3px; padding: 0 3px; }
+    .readout {
+      align-self: flex-start; margin: 46px 0 0 30px;
+      background: var(--bg); border: var(--stroke-thin) solid var(--border); border-radius: 5px;
+      padding: 8px 12px; font-family: var(--font-mono); font-size: var(--fs-small); line-height: 1.7;
+    }
+    .row { display: flex; gap: 12px; }
+    .lay { color: var(--text-muted); }
+    .pos { color: var(--pos); }
+    .neg { color: var(--neg); }
+    .ref { color: var(--ref); }
+    .cap { margin-top: auto; padding-top: 16px; font-size: var(--fs-label); color: var(--text-muted); line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div id="title">The J-lens reveals the model's internal thoughts across layers</div>
+  <div id="fig-root"></div>
+  <script type="module">
+    import { arrow, figReady } from "../lib/annot.js"
+
+    // Every record is templated from data.json — copying one into HTML is a lint failure.
+    const root = document.querySelector("#fig-root")
+    const items = window.__DATA__.items ?? []
+
+    for (const [i, item] of items.entries()) {
+      const card = document.createElement("div")
+      card.className = "card"
+      card.id = `item-${i}`
+
+      const label = document.createElement("div")
+      label.className = "label muted"
+      label.textContent = item.label
+      card.appendChild(label)
+
+      const prompt = document.createElement("div")
+      prompt.className = "prompt"
+      prompt.append(document.createTextNode(item.before + " "))
+      const tok = document.createElement("span")
+      tok.className = "tok"
+      tok.id = `tok-${i}`
+      tok.textContent = item.boxed
+      prompt.appendChild(tok)
+      if (item.after) prompt.append(document.createTextNode(item.after))
+      card.appendChild(prompt)
+
+      const readout = document.createElement("div")
+      readout.className = "readout"
+      readout.id = `read-${i}`
+      for (const r of item.readouts) {
+        const row = document.createElement("div")
+        row.className = "row"
+        const lay = document.createElement("span")
+        lay.className = "lay"
+        lay.textContent = r.layer
+        const val = document.createElement("span")
+        val.className = r.tone
+        val.textContent = r.token
+        row.append(lay, val)
+        readout.appendChild(row)
+      }
+      card.appendChild(readout)
+
+      const cap = document.createElement("p")
+      cap.className = "cap"
+      cap.textContent = item.caption
+      card.appendChild(cap)
+
+      root.appendChild(card)
+    }
+
+    // one connector per card: from the boxed token down to its layer readout
+    for (const i of items.keys()) arrow(`#tok-${i}`, `#read-${i}`, { bow: 0.3, side: "bottom" })
+
+    figReady()
+  </script>
+</body>
+</html>

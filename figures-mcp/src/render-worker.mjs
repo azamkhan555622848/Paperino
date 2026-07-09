@@ -101,18 +101,21 @@ try {
       if (!el) continue
       const range = document.createRange()
       range.selectNodeContents(tn)
-      const r = range.getBoundingClientRect()
-      if (r.width === 0 || r.height === 0) continue
       const cs = getComputedStyle(el)
-      texts.push({
-        selector: cssPath(el),
-        text: tn.textContent.trim(),
-        rect: { x: r.x, y: r.y, w: r.width, h: r.height },
-        fontSize: parseFloat(cs.fontSize),
-        color: cs.color,
-        background: effectiveBackground(el),
-        derived: el.closest("[data-derived]") !== null,
-      })
+      // One box per LINE, not one union box: a wrapped text node's bounding rect spans
+      // every line it occupies, which would collide with inline siblings on other lines.
+      for (const r of range.getClientRects()) {
+        if (r.width === 0 || r.height === 0) continue
+        texts.push({
+          selector: cssPath(el),
+          text: tn.textContent.trim(),
+          rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+          fontSize: parseFloat(cs.fontSize),
+          color: cs.color,
+          background: effectiveBackground(el),
+          derived: el.closest("[data-derived]") !== null,
+        })
+      }
     }
     const strokes = Array.from(document.querySelectorAll("svg *")).flatMap((el) => {
       const cs = getComputedStyle(el)
@@ -120,12 +123,21 @@ try {
       if (!Number.isFinite(w) || cs.stroke === "none") return []
       return [{ selector: cssPath(el), width: w }]
     })
-    const height = Math.ceil(document.documentElement.scrollHeight)
+    // The overlay is stretched to the initial viewport, so scrollHeight would pin the
+    // page at 800px and pad the figure with dead space. Measure the real content.
+    const content = Array.from(document.body.children)
+      .filter((el) => el.id !== "annot-overlay")
+      .reduce((max, el) => Math.max(max, el.getBoundingClientRect().bottom), 0)
+    const height = Math.ceil(Math.max(content, 100))
     return { viewport: { width: window.innerWidth, height }, texts, strokes }
   })
 
   const contentHeight = Math.max(manifest.viewport.height, 100)
   await page.setViewportSize({ width, height: contentHeight })
+  await page.evaluate((h) => {
+    const overlay = document.querySelector("#annot-overlay")
+    if (overlay) overlay.style.height = `${h}px`
+  }, contentHeight)
 
   const png = join(buildDir, `${name}.png`)
   await page.screenshot({ path: png, fullPage: true })

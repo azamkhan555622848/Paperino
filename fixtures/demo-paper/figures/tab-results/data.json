@@ -1,0 +1,1 @@
+{"rows":[{"step":"5C","batch":8192,"speedup":14617},{"step":"9C","batch":512,"speedup":1136},{"step":"9C","batch":256,"speedup":639}],"columns":[{"key":"step","label":"Optimisation step"},{"key":"batch","label":"Batch size","align":"right"},{"key":"speedup","label":"Speedup vs CPU","align":"right"}]}

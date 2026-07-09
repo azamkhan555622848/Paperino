@@ -78,6 +78,20 @@ test("provenance: table numbers must trace to data.json", () => {
   expect(rules(base({ meta, data: { rows: [{ v: 999 }] }, manifest: m }))).toContain("provenance")
 })
 
+test("provenance accepts a cell whose whole text is a string value from data", () => {
+  // "5C" is a step label carried straight from data.json — the 5 is not a claim
+  const m = { viewport: { width: 550, height: 300 }, texts: [box({ text: "5C" })], strokes: [] }
+  const meta = { archetype: "table", caption: "c", alt: "a", claim: "x" }
+  expect(rules(base({ meta, data: { rows: [{ step: "5C" }] }, manifest: m }))).toEqual([])
+  expect(rules(base({ meta, data: { rows: [{ step: "9C" }] }, manifest: m }))).toContain("provenance")
+})
+
+test("provenance sees through thousands separators", () => {
+  const m = { viewport: { width: 550, height: 300 }, texts: [box({ text: "14,617" })], strokes: [] }
+  const meta = { archetype: "table", caption: "c", alt: "a", claim: "x" }
+  expect(rules(base({ meta, data: { rows: [{ v: 14617 }] }, manifest: m }))).toEqual([])
+})
+
 test("provenance exempts data-derived nodes", () => {
   const m = { viewport: { width: 550, height: 300 }, texts: [box({ text: "20", derived: true })], strokes: [] }
   const meta = { archetype: "chart", caption: "c", alt: "a", claim: "x" }

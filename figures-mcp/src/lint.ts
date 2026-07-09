@@ -45,6 +45,13 @@ const flattenNumbers = (v: unknown, out: number[] = []): number[] => {
   else if (v && typeof v === "object") Object.values(v).forEach((x) => flattenNumbers(x, out))
   return out
 }
+// String values from data (labels like "5C") may contain digits that are not claims.
+const flattenStrings = (v: unknown, out: string[] = []): string[] => {
+  if (typeof v === "string") out.push(v)
+  else if (Array.isArray(v)) v.forEach((x) => flattenStrings(x, out))
+  else if (v && typeof v === "object") Object.values(v).forEach((x) => flattenStrings(x, out))
+  return out
+}
 // A rendered number traces to data if it equals a value, or a rounding of one.
 const traces = (rendered: number, values: number[]) =>
   values.some((v) => {
@@ -114,9 +121,13 @@ export function lint(input: LintInput): LintError[] {
   // 8 provenance (chart/table): every non-derived rendered number traces to data.json
   if (input.meta.archetype === "chart" || input.meta.archetype === "table") {
     const values = flattenNumbers(input.data)
+    const labels = new Set(flattenStrings(input.data))
     for (const t of texts) {
       if (t.derived) continue
-      for (const m of t.text.matchAll(/-?\d+(?:\.\d+)?/g)) {
+      // a cell copied verbatim from a string in data (e.g. the step label "5C") is sourced
+      if (labels.has(t.text)) continue
+      const normalized = t.text.replace(/(?<=\d),(?=\d)/g, "") // 14,617 -> 14617
+      for (const m of normalized.matchAll(/-?\d+(?:\.\d+)?/g)) {
         const n = Number(m[0])
         if (!traces(n, values)) err("provenance", t.selector, m[0], "a value reachable in data.json")
       }

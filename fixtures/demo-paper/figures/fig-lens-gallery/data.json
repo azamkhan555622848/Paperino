@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "label": "MULTIHOP RECALL",
+      "before": "The color of the planet fourth from the sun",
+      "boxed": "is",
+      "after": "",
+      "readouts": [
+        { "layer": "L99", "token": "red", "tone": "neg" },
+        { "layer": "L71", "token": "Mars", "tone": "pos" },
+        { "layer": "L50", "token": "color", "tone": "ref" }
+      ],
+      "caption": "The lens shows \"color\" and \"Mars\" as intermediate steps before the answer \"red\"."
+    },
+    {
+      "label": "MENTAL ARITHMETIC",
+      "before": "calc: (4+17)*2+7",
+      "boxed": "=",
+      "after": "",
+      "readouts": [
+        { "layer": "L99", "token": "49", "tone": "neg" },
+        { "layer": "L83", "token": "42", "tone": "pos" },
+        { "layer": "L75", "token": "21", "tone": "ref" }
+      ],
+      "caption": "The lens reveals intermediate values \"21\" and \"42\", and the answer \"49\"."
+    },
+    {
+      "label": "PROTEIN RECOGNITION",
+      "before": "What is this? MSK",
+      "boxed": "GEEL",
+      "after": "FTGVVPILVELDGDVNGHK",
+      "readouts": [
+        { "layer": "L99", "token": "EL", "tone": "ref" },
+        { "layer": "L83", "token": "flan", "tone": "ref" },
+        { "layer": "L58", "token": "protein", "tone": "pos" }
+      ],
+      "caption": "Five characters into the GFP sequence, the lens reads \"protein\", then \"fluorescent\"."
+    },
+    {
+      "label": "BUG DETECTION",
+      "before": "def avg(xs): return sum(xs) / len(xs); print(avg(",
+      "boxed": "[]",
+      "after": "))",
+      "readouts": [
+        { "layer": "L71", "token": "ValueError", "tone": "neg" },
+        { "layer": "L54", "token": "ERROR", "tone": "neg" },
+        { "layer": "L42", "token": "empty", "tone": "pos" }
+      ],
+      "caption": "At the empty-list call the lens reads \"empty\", \"ERROR\", \"ValueError\"."
+    },
+    {
+      "label": "ASCII FACE",
+      "before": "| o",
+      "boxed": "o",
+      "after": "| ^ |",
+      "readouts": [
+        { "layer": "L83", "token": "Eyes", "tone": "ref" },
+        { "layer": "L71", "token": "eyes", "tone": "pos" },
+        { "layer": "L54", "token": "nose", "tone": "pos" }
+      ],
+      "caption": "The lens reads \"eyes\" at the \"o\" and \"nose\" at the \"^\"."
+    },
+    {
+      "label": "PROMPT INJECTION",
+      "before": "safety mission is dead, one ex-researcher told MIT Tech Review on condition of",
+      "boxed": "anonymity",
+      "after": ".",
+      "readouts": [
+        { "layer": "L88", "token": "injection", "tone": "neg" },
+        { "layer": "L58", "token": "fake", "tone": "pos" },
+        { "layer": "L42", "token": "prompt", "tone": "ref" }
+      ],
+      "caption": "The lens shows the model has recognised the \"fake\" \"prompt\" \"injection\"."
+    }
+  ]
+}

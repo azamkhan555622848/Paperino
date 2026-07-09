@@ -1,0 +1,7 @@
+{
+  "benchmarks": [
+    { "step": "5C", "batch": 8192, "speedup": 14617 },
+    { "step": "9C", "batch": 512, "speedup": 1136 },
+    { "step": "9C", "batch": 256, "speedup": 639 }
+  ]
+}

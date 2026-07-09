@@ -1,0 +1,6 @@
+id: tab-results
+archetype: table
+width: narrow
+caption: Measured speedups over the CPU reference implementation.
+alt: Measured speedups over the CPU reference implementation.
+claim: GPU speedups grow with batch size

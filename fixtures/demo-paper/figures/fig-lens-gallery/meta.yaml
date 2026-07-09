@@ -1,0 +1,6 @@
+id: fig-lens-gallery
+archetype: gallery
+width: full
+caption: J-lens readouts at intermediate layers on six different prompts.
+alt: J-lens readouts at intermediate layers on six different prompts.
+claim: The lens reveals interpretable intermediate readouts across tasks

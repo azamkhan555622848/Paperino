@@ -1,0 +1,43 @@
+/* Paperino figure design tokens — Anthropic-look defaults.
+   Figures reference ONLY these vars; raw hex/rgb in figure.html is a lint failure. */
+:root {
+  /* neutrals */
+  --bg: #ffffff;
+  --surface: #f7f7f8;
+  --border: #d9d9de;
+  --border-strong: #b3b3bc;
+  --text: #1a1a1f;
+  --text-muted: #6b6b76;
+  /* categorical accents (lint: <= 5 in one figure) */
+  --accent: #b45309;          /* amber — primary highlight */
+  --accent-soft: #fdf3e3;     /* amber fill */
+  --pos: #15803d;             /* green */
+  --neg: #b91c1c;             /* red */
+  --ref: #1d4ed8;             /* blue */
+  /* type */
+  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
+  --fs-body: 15px;
+  --fs-label: 13px;
+  --fs-small: 11px;
+  /* strokes */
+  --stroke: 1.5px;
+  --stroke-thin: 1px;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+}
+.card {
+  background: var(--surface);
+  border: var(--stroke-thin) solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.card h3 { margin: 0 0 6px; font-size: var(--fs-body); font-weight: 600; }
+.card p { margin: 0; color: var(--text-muted); font-size: var(--fs-label); }
+.mono { font-family: var(--font-mono); font-size: var(--fs-label); }
+.muted { color: var(--text-muted); }
