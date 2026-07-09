@@ -6,6 +6,13 @@
   // shared global config (~/.config/opencode/opencode.jsonc). Disable them here so
   // the paper-writing agent has a clean tool surface — without touching the global file.
   "mcp": {
+    // Code-authored publication figures: scaffold/render/lint/review + data_query.
+    // Runs on bun; the renderer shells out to node internally (playwright hangs under bun).
+    "figures": {
+      "type": "local",
+      "command": ["bun", "C:/Users/azamk/Documents/Paperino/figures-mcp/src/server.ts"],
+      "enabled": true
+    },
     "freecad": { "enabled": false },
     "kicad": { "enabled": false },
     "partfetch": { "enabled": false },

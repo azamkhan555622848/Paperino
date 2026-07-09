@@ -59,6 +59,31 @@ soffice --headless --convert-to pdf --outdir .paperino "paper.docx"   # then ren
 Reading the text of a document (to summarise, critique or convert it) is a separate task
 from previewing it. Do both only when the user asked for both.
 
+## Figures (the figures-mcp tools)
+
+Figures are code, not images: HTML for structure, CSS custom properties for style,
+`data.json` for every number, one SVG overlay (`lib/annot.js`) for arrows, braces and
+highlights. You never type a coordinate or a hex colour.
+
+The workflow — never skip a step, never draw blind:
+
+1. Classify the figure: `schematic` | `gallery` | `chart` | `table`. Freestyling is a bug.
+2. `figure_scaffold` with the **claim** — the one sentence the figure must demonstrate —
+   written before any drawing.
+3. Pull numbers with `data_query` into `data.json`. Retyping a number is a bug; for
+   tables and charts the lint will fail it.
+4. Edit `figure.html`. Layout is HTML with flex/grid. Annotations are `arrow()`,
+   `brace()` and `highlight()` from `../lib/annot.js`, anchored to element IDs, with one
+   scalar `bow` for the swoop. Colours are `var(--…)` from `../tokens.css` only.
+5. `figure_render` → `figure_lint`. Each lint error names a selector; patch that element.
+   Repeat until lint passes.
+6. `figure_review` — you receive your render plus two exemplars. Judge it against the
+   claim and the rubric, patch, and rerun. **Hard cap: 4 review rounds**, then stop and
+   show the user what you have.
+7. Reference it from LaTeX:
+   `\includegraphics[width=\linewidth]{figures/<name>/build/<name>.pdf}`
+   and copy that PDF to `.paperino/preview.pdf` when the user asks to see it.
+
 ## Non-negotiable rules
 
 1. **Ground every scientific claim in `artifacts/`.** You contribute structure,
