@@ -45,9 +45,9 @@ import { migrate } from "./migrate"
 import { cleanupStoreFiles } from "./store-cleanup"
 
 const APP_NAMES: Record<string, string> = {
-  dev: "OpenCode Dev",
-  beta: "OpenCode Beta",
-  prod: "OpenCode",
+  dev: "Paperino Dev",
+  beta: "Paperino Beta",
+  prod: "Paperino",
 }
 const APP_IDS: Record<string, string> = {
   dev: "ai.opencode.desktop.dev",
@@ -131,7 +131,8 @@ const main = Effect.gen(function* () {
     process.env.XDG_STATE_HOME = join(root, "state")
     return root
   })()
-  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "OpenCode Dev")
+  // userData is keyed off appId below, not the name, so renaming is settings-safe
+  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "Paperino Dev")
   app.setAppUserModelId(appId)
   app.setPath(
     "userData",
