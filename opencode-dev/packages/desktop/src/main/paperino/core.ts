@@ -19,8 +19,9 @@ export function isPaperWorkspace(dir: string): boolean {
   return existsSync(join(dir, "paperino.yaml")) && existsSync(join(dir, "main.tex"))
 }
 
-// Tectonic error lines: "error: <file>:<line>: <message>" or "error: <message>"
-const ERROR_RE = /^error: (?:([^\s:]+\.(?:tex|bib|cls|sty)):(\d+):\s*)?(.+)$/gm
+// Tectonic error lines: "error: <file>:<line>: <message>" or "error: <message>".
+// The file often has no extension, because \input{sections/02-introduction} is reported verbatim.
+const ERROR_RE = /^error: (?:([^\s:]+):(\d+):\s*)?(.+)$/gm
 // This line follows real errors and adds no information of its own
 const HALT_MESSAGE = "halted on potentially-recoverable error as specified"
 

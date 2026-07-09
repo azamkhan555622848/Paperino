@@ -23,10 +23,21 @@ describe("parseTectonicLog", () => {
     })
   })
 
+  // Real tectonic output: \input{sections/02-introduction} is reported without the .tex extension
+  test("extracts extensionless \\input paths", () => {
+    const errors = parseTectonicLog("error: sections/02-introduction:2: Undefined control sequence")
+    expect(errors[0]).toEqual({
+      file: "sections/02-introduction",
+      line: 2,
+      message: "Undefined control sequence",
+    })
+  })
+
   test("errors without file:line still produce an entry", () => {
     const errors = parseTectonicLog('error: could not open "missing.tex"')
     expect(errors.length).toBe(1)
     expect(errors[0].line).toBe(null)
+    expect(errors[0].file).toBe("main.tex")
   })
 
   test("clean log produces no errors", () => {
