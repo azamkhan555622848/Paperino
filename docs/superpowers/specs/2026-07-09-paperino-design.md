@@ -185,8 +185,12 @@ Each gets its own spec→plan→implement cycle; each is independently useful wh
    *Exit: edit a .tex file → PDF updates in-pane.*
 2. **literature-mcp** — the four tools above.
    *Exit: agent drafts a related-work paragraph with 5 real, verified citations.*
-3. **paperbanana-mcp** — figure tools wired to OpenRouter, models pinned server-side.
-   *Exit: agent generates a method diagram into a manuscript, and the generation calls
-   `google/gemini-3.1-flash-image-preview` even when the chat model is something else.*
+3. **figures-mcp (Figure Studio)** — code-authored HTML/CSS/SVG figures with the
+   render→lint→review loop; see `2026-07-09-figure-studio-design.md`. **Supersedes
+   paperbanana-mcp at this position** — PaperBanana moves to the backlog as an optional
+   pictorial add-on (its tool contracts and pinned-model policy in §3.2 stay recorded
+   for that eventual add-on).
+   *Exit: both Anthropic reference figures reproduced lint-clean + one data-bound table,
+   all `\includegraphics`-ed into the demo paper.*
 4. **Writing + critic pack** — 4 venue families, drafting agents, `/review` + `/revise`.
    *Exit: system acceptance test (Section 5).*
