@@ -44,8 +44,9 @@ export type FatalRendererError = {
 export type PaperinoCompileError = { file: string; line: number | null; message: string }
 
 export type PaperinoStatus =
+  | { state: "empty" }
   | { state: "compiling" }
-  | { state: "ok"; pdf: Uint8Array; log: string }
+  | { state: "ok"; pdf: Uint8Array; log: string; source: "compile" | "preview" }
   | { state: "error"; errors: PaperinoCompileError[]; log: string }
 
 export type PaperinoAPI = {

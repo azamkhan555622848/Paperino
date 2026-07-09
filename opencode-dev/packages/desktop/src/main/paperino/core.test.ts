@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
-import { compile, isPaperWorkspace, parseTectonicLog } from "./core"
+import { classifyChange, compile, isPaperWorkspace, parseTectonicLog } from "./core"
 
 // core.test.ts lives at Paperino/opencode-dev/packages/desktop/src/main/paperino/
 const PAPERINO_ROOT = join(import.meta.dir, "..", "..", "..", "..", "..", "..")
@@ -42,6 +42,32 @@ describe("parseTectonicLog", () => {
 
   test("clean log produces no errors", () => {
     expect(parseTectonicLog("note: Running TeX ...\nnote: writing main.pdf")).toEqual([])
+  })
+})
+
+describe("classifyChange", () => {
+  test("manuscript sources trigger a recompile", () => {
+    expect(classifyChange("main.tex")).toBe("source")
+    expect(classifyChange("sections\\02-introduction.tex")).toBe("source")
+    expect(classifyChange("references.bib")).toBe("source")
+    expect(classifyChange("paperino.yaml")).toBe("source")
+    expect(classifyChange("figures/method.png")).toBe("source")
+  })
+
+  test("the agent-written preview.pdf is previewed, not compiled", () => {
+    expect(classifyChange(".paperino/preview.pdf")).toBe("preview")
+    expect(classifyChange(".paperino\\preview.pdf")).toBe("preview")
+  })
+
+  test("the rest of the build output is ignored, so compiling cannot retrigger itself", () => {
+    expect(classifyChange(".paperino/main.pdf")).toBe(null)
+    expect(classifyChange(".paperino/compile.log")).toBe(null)
+    expect(classifyChange(".paperino/main.log")).toBe(null)
+  })
+
+  test("unrelated files are ignored", () => {
+    expect(classifyChange("notes.md")).toBe(null)
+    expect(classifyChange("src/main.py")).toBe(null)
   })
 })
 

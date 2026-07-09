@@ -8,8 +8,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 type PaperinoCompileError = { file: string; line: number | null; message: string }
 type PaperinoStatus =
+  | { state: "empty" }
   | { state: "compiling" }
-  | { state: "ok"; pdf: Uint8Array; log: string }
+  | { state: "ok"; pdf: Uint8Array; log: string; source: "compile" | "preview" }
   | { state: "error"; errors: PaperinoCompileError[]; log: string }
 type PaperinoBridge = {
   detect: (dir: string) => Promise<boolean>
@@ -26,8 +27,7 @@ export function PaperPreviewPanel() {
   const sdk = useSDK()
   const api = bridge()
 
-  const [isWorkspace, setIsWorkspace] = createSignal(false)
-  const [status, setStatus] = createSignal<PaperinoStatus>({ state: "compiling" })
+  const [status, setStatus] = createSignal<PaperinoStatus>({ state: "empty" })
   const [pageCount, setPageCount] = createSignal(0)
   const [width, setWidth] = createSignal(Number(localStorage.getItem(WIDTH_KEY)) || 480)
 
@@ -66,23 +66,21 @@ export function PaperPreviewPanel() {
   createEffect(() => {
     const dir = sdk().directory
     if (!api || !dir) return
-    let disposed = false
-    let unsubscribe: (() => void) | undefined
-    void api.detect(dir).then((ok) => {
-      if (disposed) return
-      setIsWorkspace(ok)
-      if (!ok) return
-      unsubscribe = api.onStatus((next) => {
-        setStatus(next)
-        if (next.state === "ok") void renderPdf(next.pdf)
-      })
-      void api.watch(dir)
+
+    // Switching projects must not leave the previous paper on screen
+    renderToken++
+    pages?.replaceChildren()
+    setPageCount(0)
+    setStatus({ state: "empty" })
+
+    const unsubscribe = api.onStatus((next) => {
+      setStatus(next)
+      if (next.state === "ok") void renderPdf(next.pdf)
     })
-    // onCleanup must be registered synchronously in the effect scope (Solid rule) —
-    // never inside the async .then above
+    void api.watch(dir)
+
     onCleanup(() => {
-      disposed = true
-      unsubscribe?.()
+      unsubscribe()
       void api.unwatch()
     })
   })
@@ -93,13 +91,13 @@ export function PaperPreviewPanel() {
   }
 
   return (
-    <Show when={api && isWorkspace()}>
+    <Show when={api}>
       <div
         class="relative hidden md:flex h-full shrink-0 flex-col overflow-hidden border-l border-border-weaker-base bg-background-base"
         style={{ width: `${width()}px` }}
       >
         <div class="flex items-center gap-2 px-3 h-8 shrink-0 border-b border-border-weaker-base">
-          <div class="text-12-regular text-text-weak flex-1">Paper</div>
+          <div class="text-12-regular text-text-weak flex-1">Preview</div>
           <Show when={status().state === "compiling"}>
             <div class="text-12-regular text-text-weak">compiling…</div>
           </Show>
@@ -111,6 +109,14 @@ export function PaperPreviewPanel() {
           </Show>
         </div>
         <div ref={pages} class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" />
+        <Show when={status().state === "empty"}>
+          <div class="absolute inset-x-0 top-8 bottom-0 flex items-center justify-center px-8 pointer-events-none">
+            <div class="text-12-regular text-text-weak text-center max-w-64">
+              Nothing to preview yet. Open a paper workspace, run <span class="font-mono">/new-paper</span>, or ask to
+              see a document.
+            </div>
+          </div>
+        </Show>
         <Show when={errors().length > 0}>
           <div class="max-h-32 shrink-0 overflow-y-auto border-t border-border-weaker-base px-3 py-2">
             <For each={errors()}>

@@ -58,7 +58,9 @@ my-paper/
 ├─ sections/            # 01-abstract.tex … 06-discussion.tex — what agents edit
 ├─ figures/             # PaperBanana outputs + user-supplied figures
 ├─ references.bib       # machine-owned: written ONLY by literature-mcp
-└─ artifacts/           # user's raw inputs (results, data, notes, code) — read-only ground truth
+├─ artifacts/           # user's raw inputs (results, data, notes, code) — read-only ground truth
+└─ .paperino/           # build output (gitignored). compile.log + main.pdf are generated;
+                        # preview.pdf is written by the agent to show a non-LaTeX document
 ```
 
 ### Grounding rules (integrity by construction)
@@ -125,14 +127,31 @@ never consumes the chat session's model budget or context.
   triage; NEJM statistical reviewer: checklist-driven). Output = review report +
   prioritized revision list. `/revise` executes the list. Iterate until scores plateau.
 
-### 3.4 Chassis: Paper Preview panel
+### 3.4 Chassis: Preview panel
 
-- Right-side panel in the opencode desktop UI; watches the active workspace's `.tex`
-  files; debounced compile via **Tectonic** (single binary, auto-fetches packages,
-  Windows-friendly); renders output PDF with pdf.js.
-- Compile failure → keep last good PDF, show parsed error (file:line) in panel footer.
-- UI framework/panel mechanics verified against the actual opencode-dev source at
-  planning time (CutAI/TISS panel experience applies).
+Right-side panel in the opencode desktop UI, titled **"Preview"**. It is **always
+present**, in every project, and always shows a PDF. It renders whichever source
+changed last:
+
+1. **Compiled manuscript** — watches the workspace's `.tex`/`.bib`/`figures` and does a
+   debounced compile via **Tectonic** (single binary, auto-fetches packages,
+   Windows-friendly); renders the output PDF with pdf.js.
+2. **`.paperino/preview.pdf`** — any PDF the agent drops there is shown as-is, with no
+   compile step. This is how a non-LaTeX document reaches the panel (an existing `.docx`
+   draft, a downloaded paper). `.paperino/` is otherwise build output and ignored by the
+   watcher, so compiling can never retrigger itself.
+
+States: `empty` (neither source available — panel explains how to fill it), `compiling`,
+`ok`, `error`. Compile failure → keep last good PDF, show parsed error (file:line) in the
+footer.
+
+**The panel is the answer to "show me the paper".** `AGENTS.md` instructs the agent to put
+the document on screen rather than paste a summary into chat: copy a PDF, or convert a
+`.docx` (Word COM on Windows, LibreOffice otherwise) straight to `.paperino/preview.pdf`.
+
+Because the watcher re-checks `isPaperWorkspace` on every source change, a plain project
+that gains a `main.tex` mid-session (via `/new-paper`) starts live-compiling with no
+restart.
 
 ## 4. Error handling
 

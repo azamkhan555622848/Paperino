@@ -1,13 +1,16 @@
+import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import type { FSWatcher } from "node:fs"
+import { join } from "node:path"
 import { ipcMain } from "electron"
 import type { WebContents } from "electron"
-import { compile, isPaperWorkspace, watchWorkspace } from "./core"
+import { OUT_DIR, PREVIEW_FILE, compile, isPaperWorkspace, watchWorkspace } from "./core"
 import type { CompileError } from "./core"
 
 type PaperinoStatus =
+  | { state: "empty" }
   | { state: "compiling" }
-  | { state: "ok"; pdf: Uint8Array; log: string }
+  | { state: "ok"; pdf: Uint8Array; log: string; source: "compile" | "preview" }
   | { state: "error"; errors: CompileError[]; log: string }
 
 type WatchState = { watcher: FSWatcher }
@@ -32,9 +35,18 @@ export function registerPaperinoIpc() {
       if (!sender.isDestroyed()) sender.send("paperino-status", status)
     }
 
+    // A PDF the agent placed at .paperino/preview.pdf is shown as-is, no compile.
+    const showPreview = async () => {
+      const path = join(dir, OUT_DIR, PREVIEW_FILE)
+      if (!existsSync(path)) return false
+      const pdf = new Uint8Array(await readFile(path))
+      send({ state: "ok", pdf, log: "", source: "preview" })
+      return true
+    }
+
     let running = false
     let queued = false
-    const run = async () => {
+    const runCompile = async () => {
       if (running) {
         queued = true
         return
@@ -44,21 +56,34 @@ export function registerPaperinoIpc() {
       const result = await compile(dir)
       if (result.ok) {
         const pdf = new Uint8Array(await readFile(result.pdfPath))
-        send({ state: "ok", pdf, log: result.log })
+        send({ state: "ok", pdf, log: result.log, source: "compile" })
       } else {
         send({ state: "error", errors: result.errors, log: result.log })
       }
       running = false
       if (queued) {
         queued = false
-        void run()
+        void runCompile()
       }
     }
 
-    const watcher = watchWorkspace(dir, () => void run())
+    const watcher = watchWorkspace(dir, {
+      // A project can become a paper workspace mid-session (e.g. /new-paper),
+      // so re-check rather than capturing the answer at watch time.
+      onSource: () => {
+        if (isPaperWorkspace(dir)) void runCompile()
+      },
+      onPreview: () => void showPreview(),
+    })
     states.set(sender.id, { watcher })
     sender.once("destroyed", () => stop(sender.id))
-    await run()
+
+    if (isPaperWorkspace(dir)) {
+      await runCompile()
+      return
+    }
+    if (await showPreview()) return
+    send({ state: "empty" })
   })
 
   ipcMain.handle("paperino-unwatch", (event) => stop(event.sender.id))

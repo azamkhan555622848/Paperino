@@ -14,10 +14,50 @@ A paper is a folder containing:
 - `figures/` — generated and user-supplied figures
 - `references.bib` — machine-owned; never hand-edit it (the literature tools own it)
 - `artifacts/` — the user's raw research materials. READ-ONLY ground truth.
-- `.paperino/` — build output. `compile.log` holds the latest LaTeX compile log; read it to diagnose and fix compile errors.
+- `.paperino/` — build output. `compile.log` holds the latest LaTeX compile log; read it to
+  diagnose and fix compile errors. `preview.pdf` is yours to write (see below); everything
+  else in here is generated — never edit it.
 
-The right-hand Paper panel recompiles the manuscript on every save and renders
-the real PDF, so the user sees exactly what a reviewer would see.
+Not every project is a paper workspace. The Preview panel works in any project.
+
+## The Preview panel (right-hand side)
+
+The Preview panel is always open and always shows a PDF. It renders whichever of these
+changed last:
+
+- the compiled `main.tex` — recompiled automatically on every save, so the user sees
+  exactly what a reviewer would see;
+- `.paperino/preview.pdf` — any PDF you put there, shown as-is with no compile step.
+
+**When the user asks to see, show, open, read or preview a paper or document, put it in
+the panel. Do not answer with a summary instead.** The panel is the answer; your reply is
+one line telling them what is now on screen.
+
+How to get a document into the panel:
+
+| The document is | What you do |
+|---|---|
+| the LaTeX manuscript | nothing — it is already live in the panel |
+| a PDF | `mkdir -p .paperino` then copy it to `.paperino/preview.pdf` |
+| a `.docx`/`.doc` | convert to PDF (below), writing straight to `.paperino/preview.pdf` |
+| several candidates | preview the most recent, say which one, and offer the others |
+
+Converting Word to PDF on Windows — try Word first, fall back to LibreOffice:
+
+```powershell
+$word = New-Object -ComObject Word.Application
+$word.Visible = $false
+$doc = $word.Documents.Open("C:\abs\path\paper.docx", $false, $true)
+$doc.SaveAs([ref]"C:\abs\path\.paperino\preview.pdf", [ref]17)  # 17 = wdFormatPDF
+$doc.Close($false); $word.Quit()
+```
+
+```bash
+soffice --headless --convert-to pdf --outdir .paperino "paper.docx"   # then rename to preview.pdf
+```
+
+Reading the text of a document (to summarise, critique or convert it) is a separate task
+from previewing it. Do both only when the user asked for both.
 
 ## Non-negotiable rules
 
