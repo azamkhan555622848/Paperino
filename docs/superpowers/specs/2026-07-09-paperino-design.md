@@ -19,7 +19,12 @@ style).
 - **v1 capabilities:** drafting engine, literature search + verified citations, figure generation (PaperBanana), venue-matched reviewer/critic passes.
 - **Input model:** real research artifacts only. Agents ground all scientific content in user-provided materials; Paperino contributes structure and prose craft, never invented results.
 - **Distribution:** personal tool first. Dev-mode launch (`paperino-dev.cmd`), local Python/uv and Tectonic installs are acceptable. Productization is out of scope for v1.
-- **Models:** OpenRouter for everything (text agents and PaperBanana image generation) — one key.
+- **Models:** OpenRouter for everything — one key. Two independent tiers:
+  - **Chat/writing model: the user's choice**, picked in the app's model picker at any time.
+  - **Figure generation: pinned, not user-selectable.** `paperbanana-mcp` always calls
+    "Nano Banana" (`google/gemini-3.1-flash-image-preview`) for image synthesis, whatever
+    the chat model is. Figures must not silently change quality because the user switched
+    chat models.
 - **Venues in v1:** Nature family, NeurIPS/ICML/ICLR/ACL, NEJM/Lancet/JAMA, IEEE/ACM journals.
 
 **Known constraint:** PaperBanana's README notes Google has filed patents on its workflows
@@ -94,6 +99,19 @@ Free API tiers suffice for personal use; optional Semantic Scholar key raises ra
 - No changes to PaperBanana internals; call its Python API as `demo.py` does. Runs in its
   own uv-managed venv. Long runs stream MCP progress notifications.
 
+**Models are pinned by the server, never inherited from the chat session.** PaperBanana
+resolves models from `MAIN_MODEL_NAME` / `IMAGE_GEN_MODEL_NAME` and its key from
+`OPENROUTER_API_KEY` (`utils/config.py:64-76`, `utils/generation_utils.py:98-102`), so the
+MCP server sets all three in its own `environment` block — no PaperBanana code changes:
+
+| Role | Model | Why |
+|---|---|---|
+| Image synthesis (Visualizer, refine/upscale) | `google/gemini-3.1-flash-image-preview` ("Nano Banana") | Pinned per product decision; verified present on OpenRouter with `output_modalities: [image, text]` |
+| Pipeline VLM (Retriever, Planner, Stylist, **Critic**) | `google/gemini-3.5-flash` (override: `PAPERINO_FIGURE_VLM`) | The Critic must *see* the rendered candidate, so this must accept image input (`input_modalities` includes `image`) |
+
+The chat model the user selects has no effect on either. Conversely, figure generation
+never consumes the chat session's model budget or context.
+
 ### 3.3 Writing + critic pack (pure markdown)
 
 - **Venue profiles** (`venues/<family>/`): LaTeX template + structured constraints
@@ -148,7 +166,8 @@ Each gets its own spec→plan→implement cycle; each is independently useful wh
    *Exit: edit a .tex file → PDF updates in-pane.*
 2. **literature-mcp** — the four tools above.
    *Exit: agent drafts a related-work paragraph with 5 real, verified citations.*
-3. **paperbanana-mcp** — figure tools wired to OpenRouter.
-   *Exit: agent generates a method diagram into a manuscript.*
+3. **paperbanana-mcp** — figure tools wired to OpenRouter, models pinned server-side.
+   *Exit: agent generates a method diagram into a manuscript, and the generation calls
+   `google/gemini-3.1-flash-image-preview` even when the chat model is something else.*
 4. **Writing + critic pack** — 4 venue families, drafting agents, `/review` + `/revise`.
    *Exit: system acceptance test (Section 5).*
