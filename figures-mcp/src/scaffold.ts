@@ -12,6 +12,8 @@ export type ScaffoldOpts = {
   claim: string
   caption: string
   width: "narrow" | "full"
+  /** Screen-reader description. Defaults to the caption so a fresh figure lints clean. */
+  alt?: string
 }
 
 export class ScaffoldError extends Error {}
@@ -36,7 +38,7 @@ export async function scaffold(workspace: string, opts: ScaffoldOpts): Promise<{
       archetype: opts.archetype,
       width: opts.width,
       caption: opts.caption,
-      alt: "",
+      alt: opts.alt?.trim() || opts.caption,
       claim: opts.claim,
     }),
   )

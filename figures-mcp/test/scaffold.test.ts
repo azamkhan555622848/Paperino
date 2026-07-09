@@ -23,9 +23,22 @@ test("scaffold creates figure dir, meta.yaml, data.json and vendors the lib once
     archetype: "schematic",
     width: "narrow",
     caption: "Demo.",
-    alt: "",
+    alt: "Demo.", // defaults to the caption so a fresh figure passes meta-complete
     claim: "A precedes B",
   })
+})
+
+test("scaffold keeps an explicit alt", async () => {
+  await scaffold(WS, {
+    name: "fig02",
+    archetype: "schematic",
+    claim: "c",
+    caption: "cap",
+    width: "narrow",
+    alt: "A described for screen readers",
+  })
+  const meta = parse(readFileSync(join(WS, "figures", "fig02", "meta.yaml"), "utf8"))
+  expect(meta.alt).toBe("A described for screen readers")
 })
 
 test("scaffold refuses to overwrite an existing figure", async () => {
