@@ -26,7 +26,12 @@ impossibility of number hallucination.
 **Locked decisions:**
 
 - Figure Studio is the **primary** figure pipeline (schematics, galleries, charts,
-  tables). PaperBanana (image generation) is deferred, optional, pictorial-only.
+  tables). PaperBanana (image generation) is the pictorial alternative.
+- **The agent must offer both and let the user choose** before making any figure
+  (added 2026-07-10). Both ship as MCP servers: `figures` and `paperbanana`.
+  `paperbanana-mcp` drives the pipeline headlessly — it does not import `demo.py`,
+  which pulls in streamlit/gradio — with models pinned in-process. Its output is
+  raster and therefore exempt from lint; that tradeoff is stated to the user.
 - v1 scope = brief phases **P0–P5**: templates + tokens + render, lint + bbox manifest,
   annot.js, vision-review loop with exemplars, data binding + table generator +
   provenance hashing, PDF/PNG/SVG dual output. **v2 (explicitly deferred):** P6
