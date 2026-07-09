@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    #fig-root { padding: 16px 16px 32px; }
+    .plot { position: relative; height: 240px; border-left: var(--stroke-thin) solid var(--border-strong); border-bottom: var(--stroke-thin) solid var(--border-strong); }
+    .bar { position: absolute; bottom: 0; background: var(--accent); }
+    .tick { position: absolute; font-size: var(--fs-small); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div id="fig-root"><div class="plot" id="plot"></div></div>
+  <script type="module">
+    import { scaleLinear, scaleBand, derived } from "../lib/scale.js"
+    import { figReady } from "../lib/annot.js"
+    // Marks are positioned ONLY through scales. A hand-placed bar is a lint failure.
+    const data = window.__DATA__.series ?? []
+    const plot = document.querySelector("#plot")
+    const W = plot.clientWidth || 500
+    const H = 240
+    const x = scaleBand(data.map((d) => d.label), [0, W])
+    const y = scaleLinear([0, Math.max(...data.map((d) => d.value), 1)], [0, H])
+    for (const [i, d] of data.entries()) {
+      const bar = document.createElement("div")
+      bar.className = "bar"
+      bar.id = `bar-${i}`
+      bar.style.left = `${x(d.label)}px`
+      bar.style.width = `${x.bandwidth()}px`
+      bar.style.height = `${y(d.value)}px`
+      plot.appendChild(bar)
+      const lab = derived(d.label)
+      lab.className = "tick"
+      lab.style.left = `${x(d.label)}px`
+      lab.style.bottom = "-20px"
+      plot.appendChild(lab)
+    }
+    figReady()
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    #fig-root { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 16px; }
+  </style>
+</head>
+<body>
+  <div id="fig-root"></div>
+  <script type="module">
+    import { figReady } from "../lib/annot.js"
+    // Records come from data.json (injected as window.__DATA__). Copying records
+    // into HTML by hand is a lint failure.
+    const root = document.querySelector("#fig-root")
+    for (const [i, item] of (window.__DATA__.items ?? []).entries()) {
+      const card = document.createElement("div")
+      card.className = "card"
+      card.id = `item-${i}`
+      card.innerHTML = `<h3></h3><p class="mono"></p>`
+      card.querySelector("h3").textContent = item.title ?? ""
+      card.querySelector("p").textContent = item.body ?? ""
+      root.appendChild(card)
+    }
+    figReady()
+  </script>
+</body>
+</html>
