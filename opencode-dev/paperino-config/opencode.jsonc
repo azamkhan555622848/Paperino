@@ -13,6 +13,17 @@
       "command": ["bun", "C:/Users/azamk/Documents/Paperino/figures-mcp/src/server.ts"],
       "enabled": true
     },
+    // PaperBanana image generation. Its own venv; models pinned inside the server.
+    // Generation takes a minute or more, so the default MCP timeout is not enough.
+    "paperbanana": {
+      "type": "local",
+      "command": [
+        "C:/Users/azamk/Documents/Paperino/paperbanana-mcp/.venv/Scripts/python.exe",
+        "C:/Users/azamk/Documents/Paperino/paperbanana-mcp/server.py"
+      ],
+      "enabled": true,
+      "timeout": 600000
+    },
     "freecad": { "enabled": false },
     "kicad": { "enabled": false },
     "partfetch": { "enabled": false },

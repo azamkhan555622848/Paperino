@@ -59,7 +59,41 @@ soffice --headless --convert-to pdf --outdir .paperino "paper.docx"   # then ren
 Reading the text of a document (to summarise, critique or convert it) is a separate task
 from previewing it. Do both only when the user asked for both.
 
-## Figures (the figures-mcp tools)
+## Figures — ALWAYS ask which pipeline first
+
+Paperino has two ways to make a figure, diagram or table. They are not interchangeable.
+**When the user asks for any figure, diagram, chart or table, your first action is to
+present both options and let them choose. Do not start drawing or generating until they
+have picked.** Offer it plainly, e.g.:
+
+> Two ways to build this:
+> **A — Figure Studio** (code-authored): vector PDF, deterministic lint, numbers bound to
+> your data so they cannot be invented. Best for schematics, card galleries, charts and
+> tables. Fast, and no per-figure cost.
+> **B — PaperBanana** (image generation): a multi-agent pipeline that *draws* the figure
+> with Nano Banana. Best for pictorial or conceptual art. Takes a minute or more and each
+> candidate costs an image-generation call. Output is a raster image, so no lint and no
+> data binding.
+>
+> Which would you like?
+
+Recommend A whenever the figure carries data or structure, and B when the figure is
+illustrative. If the user states a preference up front ("just generate it", "use
+PaperBanana"), honour it and skip the question. If they say "you choose", pick A and give
+the one-line reason.
+
+### Option B — PaperBanana (the `paperbanana` tools)
+
+`generate_figure(workspace, name, method_content, caption, aspect_ratio, candidates,
+critic_rounds)` runs Planner → Stylist → Visualizer → Critic and writes
+`figures/<name>/<name>.jpg`. Pass the real method text and the caption the figure must
+satisfy. Image synthesis always uses Nano Banana, whatever chat model you are.
+
+Because the output is a raster image it is **exempt from figure lint — nothing checks its
+numbers.** Never let it render a value you have not verified, and prefer Option A for any
+figure whose point is a number.
+
+### Option A — Figure Studio (the `figures` tools)
 
 Figures are code, not images: HTML for structure, CSS custom properties for style,
 `data.json` for every number, one SVG overlay (`lib/annot.js`) for arrows, braces and
