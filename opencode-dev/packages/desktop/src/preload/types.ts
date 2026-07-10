@@ -49,11 +49,17 @@ export type PaperinoStatus =
   | { state: "ok"; pdf: Uint8Array; log: string; source: "compile" | "preview" }
   | { state: "error"; errors: PaperinoCompileError[]; log: string }
 
+export type PaperinoReadFileResult =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; error: "invalid-path" | "not-found" | "too-large" }
+
 export type PaperinoAPI = {
   detect: (dir: string) => Promise<boolean>
   watch: (dir: string) => Promise<void>
   unwatch: () => Promise<void>
   onStatus: (cb: (status: PaperinoStatus) => void) => () => void
+  listFiles: (dir: string) => Promise<{ files: string[]; truncated: boolean }>
+  readFile: (dir: string, relPath: string) => Promise<PaperinoReadFileResult>
 }
 
 export type ElectronAPI = {

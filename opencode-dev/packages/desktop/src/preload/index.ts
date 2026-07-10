@@ -20,6 +20,8 @@ const api: ElectronAPI = {
       ipcRenderer.on("paperino-status", handler)
       return () => ipcRenderer.removeListener("paperino-status", handler)
     },
+    listFiles: (dir) => ipcRenderer.invoke("paperino-list-files", dir),
+    readFile: (dir, relPath) => ipcRenderer.invoke("paperino-read-file", dir, relPath),
   },
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
   installCli: () => ipcRenderer.invoke("install-cli"),

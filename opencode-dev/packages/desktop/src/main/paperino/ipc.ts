@@ -6,6 +6,7 @@ import { ipcMain } from "electron"
 import type { WebContents } from "electron"
 import { OUT_DIR, PREVIEW_FILE, compile, isPaperWorkspace, watchWorkspace } from "./core"
 import type { CompileError } from "./core"
+import { listWorkspaceFiles, readWorkspaceFile } from "./files"
 
 type PaperinoStatus =
   | { state: "empty" }
@@ -87,4 +88,8 @@ export function registerPaperinoIpc() {
   })
 
   ipcMain.handle("paperino-unwatch", (event) => stop(event.sender.id))
+
+  ipcMain.handle("paperino-list-files", (_event, dir: string) => listWorkspaceFiles(dir))
+
+  ipcMain.handle("paperino-read-file", (_event, dir: string, relPath: string) => readWorkspaceFile(dir, relPath))
 }
