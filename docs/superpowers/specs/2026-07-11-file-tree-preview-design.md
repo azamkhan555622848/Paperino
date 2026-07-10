@@ -1,7 +1,7 @@
 # File tree + universal file preview in the Preview panel
 
 **Date:** 2026-07-11
-**Status:** Approved
+**Status:** Implemented (2026-07-11, branch `feat/paperino`)
 **Owner:** Preview panel (`opencode-dev/packages/app/src/components/paperino/`, `opencode-dev/packages/desktop/src/main/paperino/`)
 
 ## Problem
