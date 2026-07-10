@@ -1,17 +1,15 @@
-import { For, Show, createEffect, createSignal, onCleanup } from "solid-js"
-import * as pdfjs from "pdfjs-dist"
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url"
+import { For, Show, createEffect, createSignal, onCleanup, onMount } from "solid-js"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { useSDK } from "@/context/sdk"
-
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+import { isPdfDataUrl, PAPERINO_DOCUMENT_PREVIEW_EVENT } from "./document-preview"
+import { PdfPages } from "./pdf-pages"
 
 type PaperinoCompileError = { file: string; line: number | null; message: string }
 type PaperinoStatus =
   | { state: "empty" }
   | { state: "compiling" }
   | { state: "ok"; pdf: Uint8Array; log: string; source: "compile" | "preview" }
-  | { state: "error"; errors: PaperinoCompileError[]; log: string }
+  | { state: "error"; errors: PaperinoCompileError[]; log: string; kind?: "compile" | "document" }
 type PaperinoBridge = {
   detect: (dir: string) => Promise<boolean>
   watch: (dir: string) => Promise<void>
@@ -30,52 +28,45 @@ export function PaperPreviewPanel() {
   const [status, setStatus] = createSignal<PaperinoStatus>({ state: "empty" })
   const [pageCount, setPageCount] = createSignal(0)
   const [width, setWidth] = createSignal(Number(localStorage.getItem(WIDTH_KEY)) || 480)
+  const [paperPdf, setPaperPdf] = createSignal<Uint8Array>()
 
-  let pages!: HTMLDivElement
-  let renderToken = 0
-
-  const renderPdf = async (data: Uint8Array) => {
-    const token = ++renderToken
-    // pdf.js transfers the buffer to its worker — hand it a copy
-    const doc = await pdfjs.getDocument({ data: data.slice() }).promise
-    if (token !== renderToken) return
-    const scroll = pages.scrollTop
-    // clientWidth already excludes the vertical scrollbar; subtract the p-3 padding
-    const available = Math.max(200, pages.clientWidth - 24)
-    const canvases: HTMLCanvasElement[] = []
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i)
-      const unscaled = page.getViewport({ scale: 1 })
-      const scale = (available / unscaled.width) * window.devicePixelRatio
-      const viewport = page.getViewport({ scale })
-      const canvas = document.createElement("canvas")
-      canvas.width = viewport.width
-      canvas.height = viewport.height
-      canvas.style.width = `${viewport.width / window.devicePixelRatio}px`
-      canvas.style.height = `${viewport.height / window.devicePixelRatio}px`
-      canvas.className = "block mx-auto mb-2 shadow"
-      await page.render({ canvas, viewport }).promise
-      canvases.push(canvas)
+  const previewDocument = async (source: string) => {
+    if (!isPdfDataUrl(source)) return
+    try {
+      const response = await fetch(source)
+      const pdf = new Uint8Array(await response.arrayBuffer())
+      setStatus({ state: "ok", pdf, log: "", source: "preview" })
+      setPaperPdf(pdf)
+    } catch (error) {
+      setStatus({
+        state: "error",
+        kind: "document",
+        errors: [{ file: "document", line: null, message: error instanceof Error ? error.message : "Unable to preview PDF" }],
+        log: "",
+      })
     }
-    if (token !== renderToken) return
-    pages.replaceChildren(...canvases)
-    pages.scrollTop = scroll
-    setPageCount(doc.numPages)
   }
+
+  onMount(() => {
+    const handler = (event: Event) => {
+      if (!(event instanceof CustomEvent) || typeof event.detail !== "string") return
+      void previewDocument(event.detail)
+    }
+    window.addEventListener(PAPERINO_DOCUMENT_PREVIEW_EVENT, handler)
+    onCleanup(() => window.removeEventListener(PAPERINO_DOCUMENT_PREVIEW_EVENT, handler))
+  })
 
   createEffect(() => {
     const dir = sdk().directory
     if (!api || !dir) return
 
     // Switching projects must not leave the previous paper on screen
-    renderToken++
-    pages?.replaceChildren()
-    setPageCount(0)
+    setPaperPdf(undefined)
     setStatus({ state: "empty" })
 
     const unsubscribe = api.onStatus((next) => {
       setStatus(next)
-      if (next.state === "ok") void renderPdf(next.pdf)
+      if (next.state === "ok") setPaperPdf(next.pdf)
     })
     void api.watch(dir)
 
@@ -88,6 +79,11 @@ export function PaperPreviewPanel() {
   const errors = () => {
     const s = status()
     return s.state === "error" ? s.errors : []
+  }
+
+  const documentPreviewFailed = () => {
+    const s = status()
+    return s.state === "error" && s.kind === "document"
   }
 
   return (
@@ -105,10 +101,12 @@ export function PaperPreviewPanel() {
             <div class="text-12-regular text-text-weak">{pageCount() === 1 ? "1 page" : `${pageCount()} pages`}</div>
           </Show>
           <Show when={status().state === "error"}>
-            <div class="text-12-regular text-red-500">compile failed</div>
+            <div class="text-12-regular text-red-500">
+              {documentPreviewFailed() ? "preview failed" : "compile failed"}
+            </div>
           </Show>
         </div>
-        <div ref={pages} class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" />
+        <PdfPages data={paperPdf()} onPageCount={setPageCount} />
         <Show when={status().state === "empty"}>
           <div class="absolute inset-x-0 top-8 bottom-0 flex items-center justify-center px-8 pointer-events-none">
             <div class="text-12-regular text-text-weak text-center max-w-64">
