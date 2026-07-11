@@ -33,6 +33,13 @@ changed last:
   name, is not compiled for you.
 - `.paperino/preview.pdf` — any PDF you put there, shown as-is with no compile step.
 
+**Every successful compile also rewrites `main.pdf` next to `main.tex`** — the PDF the user
+opens from the folder. You do not have to build or copy it yourself: edit the `.tex`, and
+that file is current within a second or two. It is compile output, so never hand-edit it and
+never treat it as a source. Other PDFs in the folder (`main_updated.pdf`, a downloaded
+draft) are NOT rebuilt by anything — if the user is reading one of those, they are reading a
+file that no longer tracks `main.tex`, and you should say so.
+
 **When the user asks to see, show, open, read or preview a paper or document, put it in
 the panel. Do not answer with a summary instead.** The panel is the answer; your reply is
 one line telling them what is now on screen.

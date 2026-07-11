@@ -1,2 +1,6 @@
 tools/
 **/.paperino/
+
+# compile() publishes the paper's PDF beside main.tex, so the fixtures now build one.
+# It is output, not a source file.
+fixtures/*/main.pdf

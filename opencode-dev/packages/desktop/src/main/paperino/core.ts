@@ -1,12 +1,14 @@
 import { execFile } from "node:child_process"
-import { existsSync, mkdirSync, watch, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, watch, writeFileSync } from "node:fs"
 import type { FSWatcher } from "node:fs"
 import { join } from "node:path"
 
 export type CompileError = { file: string; line: number | null; message: string }
 
 export type CompileResult =
-  | { ok: true; pdfPath: string; log: string }
+  // pdfPath is the build-directory PDF the panel renders. emittedPath is the copy beside
+  // main.tex; it is absent when the copy failed (a viewer had the file locked).
+  | { ok: true; pdfPath: string; emittedPath?: string; log: string }
   | { ok: false; errors: CompileError[]; log: string }
 
 export const OUT_DIR = ".paperino"
@@ -15,6 +17,13 @@ export const OUT_DIR = ".paperino"
 // shows a document that is not a LaTeX manuscript (an existing draft, a downloaded paper).
 export const PREVIEW_FILE = "preview.pdf"
 export const PREVIEW_PATH = `${OUT_DIR}/${PREVIEW_FILE}`
+
+// The compiled paper is also written here, beside main.tex. Tectonic builds into .paperino/
+// so its .aux/.log litter stays out of the project — but that is a hidden build directory,
+// and a user who opens "the PDF of my paper" opens main.pdf in the folder. Emitting only
+// into .paperino/ meant the panel showed a freshly compiled paper while main.pdf sat months
+// stale, which reads exactly like "it edited the LaTeX but never updated the PDF".
+export const OUTPUT_PDF = "main.pdf"
 
 function tectonicBinary() {
   return process.env.PAPERINO_TECTONIC || "tectonic"
@@ -60,7 +69,22 @@ export function compile(dir: string): Promise<CompileResult> {
           resolve({ ok: false, errors, log })
           return
         }
-        resolve({ ok: true, pdfPath: join(outDir, "main.pdf"), log })
+        const built = join(outDir, OUTPUT_PDF)
+
+        // Publish the paper where the user looks for it. A viewer holding main.pdf open
+        // locks it on Windows (EBUSY/EPERM), so a failed copy must not fail the compile —
+        // the panel still has the build-directory PDF. Say so in the log instead of
+        // silently leaving a stale file behind.
+        let emitted: string | undefined
+        try {
+          copyFileSync(built, join(dir, OUTPUT_PDF))
+          emitted = join(dir, OUTPUT_PDF)
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err)
+          writeFileSync(join(outDir, "compile.log"), `${log}\n\ncould not update ${OUTPUT_PDF}: ${reason}`)
+        }
+
+        resolve({ ok: true, pdfPath: built, emittedPath: emitted, log })
       },
     )
   })
@@ -79,6 +103,10 @@ export function classifyChange(filename: string): ChangeKind {
   const name = filename.replaceAll("\\", "/").replace(/^\.\//, "")
   if (name === PREVIEW_PATH) return "preview"
   if (name.startsWith(`${OUT_DIR}/`) || name === OUT_DIR) return null
+  // The paper's own PDF is compile OUTPUT, not source. Every other .pdf still is a source —
+  // Figure Studio emits figures as PDFs — so without this line the copy compile() drops
+  // beside main.tex would look like an edit and the compile would retrigger itself forever.
+  if (name === OUTPUT_PDF) return null
   if (!SOURCE_RE.test(name)) return null
   return "source"
 }

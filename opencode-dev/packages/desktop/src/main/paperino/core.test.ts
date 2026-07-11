@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { classifyChange, compile, isPaperWorkspace, parseTectonicLog } from "./core"
@@ -66,6 +66,19 @@ describe("classifyChange", () => {
     expect(classifyChange(".paperino/main.log")).toBe(null)
   })
 
+  test("the emitted main.pdf does not retrigger the compile that wrote it", () => {
+    // compile() now writes the PDF next to main.tex, where the user actually opens it.
+    // A .pdf is otherwise a source (Figure Studio emits figures as PDFs), so without
+    // this rule the copy would look like a source edit and compile forever.
+    expect(classifyChange("main.pdf")).toBe(null)
+    expect(classifyChange(".\\main.pdf")).toBe(null)
+  })
+
+  test("figure PDFs are still sources", () => {
+    expect(classifyChange("figures/method.pdf")).toBe("source")
+    expect(classifyChange("figures/fig-jspace/build/fig-jspace.pdf")).toBe("source")
+  })
+
   test("unrelated files are ignored", () => {
     expect(classifyChange("notes.md")).toBe(null)
     expect(classifyChange("src/main.py")).toBe(null)
@@ -98,6 +111,23 @@ describe("compile (integration, needs tectonic + network on first run)", () => {
       expect(result.ok).toBe(true)
       if (result.ok) expect(existsSync(result.pdfPath)).toBe(true)
       expect(existsSync(join(FIXTURE, ".paperino", "compile.log"))).toBe(true)
+    },
+    180_000,
+  )
+
+  test(
+    "the compiled PDF also lands next to main.tex, where the user opens it",
+    async () => {
+      const emitted = join(FIXTURE, "main.pdf")
+      rmSync(emitted, { force: true })
+
+      const result = await compile(FIXTURE)
+      expect(result.ok).toBe(true)
+
+      // The whole point of the bug: the panel showed a fresh paper while main.pdf in the
+      // folder stayed months stale, because the output only ever went to .paperino/.
+      expect(existsSync(emitted)).toBe(true)
+      expect(readFileSync(emitted)).toEqual(readFileSync(join(FIXTURE, ".paperino", "main.pdf")))
     },
     180_000,
   )

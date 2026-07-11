@@ -80,6 +80,14 @@ is no URL to navigate — seed a project with `window.api.storeSet(...)` plus th
 - **Tectonic's `--outdir` must already exist,** and its errors report `\input` paths
   *without* the `.tex` extension (`sections/02-introduction:2:`). The error-parsing regex
   must not require an extension, or every error is misattributed to `main.tex`.
+- **`compile()` publishes the PDF twice: `.paperino/main.pdf` (what the panel renders) and
+  `main.pdf` beside `main.tex` (what the user opens).** Building only into `.paperino/` is
+  what made the panel show a fresh paper while the `main.pdf` in the folder stayed months
+  stale. The copy is best-effort — a PDF viewer holding the file open locks it on Windows,
+  and a failed copy must not fail the compile.
+  **`classifyChange` must therefore ignore a root-level `main.pdf`.** `SOURCE_RE` matches
+  `.pdf` on purpose (Figure Studio emits figures as PDFs), so without that rule the copy
+  reads as a source edit and the compile retriggers itself forever.
 
 ## figures-mcp
 
