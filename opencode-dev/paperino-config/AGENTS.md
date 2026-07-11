@@ -42,22 +42,35 @@ How to get a document into the panel:
 | a `.docx`/`.doc` | convert to PDF (below), writing straight to `.paperino/preview.pdf` |
 | several candidates | preview the most recent, say which one, and offer the others |
 
-Converting Word to PDF on Windows — try Word first, fall back to LibreOffice:
-
-```powershell
-$word = New-Object -ComObject Word.Application
-$word.Visible = $false
-$doc = $word.Documents.Open("C:\abs\path\paper.docx", $false, $true)
-$doc.SaveAs([ref]"C:\abs\path\.paperino\preview.pdf", [ref]17)  # 17 = wdFormatPDF
-$doc.Close($false); $word.Quit()
-```
+Converting Word to PDF — load the `docx` skill and use its script. It drives Word itself;
+there is no LibreOffice on this machine, so do not reach for `soffice`.
 
 ```bash
-soffice --headless --convert-to pdf --outdir .paperino "paper.docx"   # then rename to preview.pdf
+python scripts/word.py convert "paper.docx" ".paperino/preview.pdf"
 ```
 
 Reading the text of a document (to summarise, critique or convert it) is a separate task
 from previewing it. Do both only when the user asked for both.
+
+The user can also open the panel's **file tree** (the folder icon in its header) and click
+any file — PDF, image, `.docx` or text — to view it themselves. So "show me X" is always
+answerable with a file on screen, never with a summary in the chat.
+
+## Office files — load the skill first
+
+Three skills carry the house rules for the formats a paper author actually arrives with.
+**Load the matching skill *before* you touch such a file, not after** — each one carries
+conventions that are easy to violate irreversibly:
+
+| The file is | Skill | It exists because |
+|---|---|---|
+| `.xlsx` `.xlsm` `.csv` `.tsv` | `xlsx` | openpyxl writes formulas with no cached value — a workbook you save looks blank until Excel recalculates it. The skill's `recalc.py` does that and fails you if any `#REF!`/`#DIV/0!` survives. |
+| `.docx` `.doc` `.dotx` | `docx` | Word is driven over COM; the skill converts, accepts tracked changes and adds comments without hand-writing OOXML. |
+| `.pdf` | `pdf` | pypdf/pdfplumber for merge, split, extract; `render.py` to rasterize so you can *look* at what you produced. OCR is unavailable — say so rather than guessing at a scan. |
+
+Two things these skills all insist on, because they are Paperino's rules and not Anthropic's:
+**never edit a file inside `artifacts/` in place** (it is read-only ground truth — copy it
+out first), and **a number you did not read is a number you may not write.**
 
 ## Figures — ALWAYS ask which pipeline first
 
@@ -132,3 +145,7 @@ The workflow — never skip a step, never draw blind:
    fix it before moving on.
 4. **One section at a time.** Draft or revise a single section per pass and let
    the user react. Never regenerate a whole paper in one shot.
+5. **`artifacts/` is read-only.** Never write to, edit in place, or recalculate a
+   file inside it. Copy it out and work on the copy. A spreadsheet or document in
+   `artifacts/` is the user's raw evidence; overwriting it destroys the only thing
+   standing between this app and invented results.

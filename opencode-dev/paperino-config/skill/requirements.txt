@@ -1,0 +1,15 @@
+# Python dependencies for Paperino's office-file skills (xlsx, docx, pdf).
+#
+# setup.cmd installs these into tools/pyoffice/.venv. `tools/` is gitignored — like the
+# pinned Tectonic and jq binaries — so this file, not the venv, is the record of what the
+# skills need. paperino-dev.cmd puts that venv first on PATH, so inside the app a bare
+# `python` IS this interpreter.
+
+openpyxl==3.1.5        # xlsx: formulas, formatting, template-preserving edits
+pandas==3.0.3          # xlsx/csv: bulk data analysis
+pypdf==6.14.2          # pdf: merge, split, rotate, encrypt, watermark, forms
+pdfplumber==0.11.10    # pdf: text and table extraction
+pypdfium2==5.11.0      # pdf: rasterize pages (stands in for poppler's pdftoppm)
+reportlab==5.0.0       # pdf: authoring from scratch
+python-docx==1.2.0     # docx: read and edit Word documents without launching Word
+pywin32==312           # Excel/Word COM: formula recalc, format conversion, comments
