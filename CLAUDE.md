@@ -177,6 +177,16 @@ duplicated in `packages/ui/src/components/logo.tsx` (themed with the app's ink t
   build output** — `copy-icons.ts` does `rm -rf` on it, so editing it directly is pointless. The
   icon sets are inside the untracked vendor tree; `brand/` is what is tracked, so the brand is
   reproducible rather than committed as 4 MB of binaries.
+- **The dev taskbar icon is a third thing again.** A dev run's process is
+  `node_modules/.../electron/dist/electron.exe`, and Windows caches a taskbar button's icon
+  against the executable — so the app kept showing Electron's atom even with a correct window
+  icon. `brand/patch-electron-exe.cmd` stamps the icon (and ProductName) onto that exe with the
+  rcedit vendored inside `electron-winstaller`. It must run with the app **closed**, and
+  `bun install` reverts it. Packaged builds don't need it.
+  If the taskbar still shows the atom after patching, that is **Windows' shell icon cache**, not
+  the app: verify with `[System.Drawing.Icon]::ExtractAssociatedIcon(exe)` and the window's own
+  `WM_GETICON` — if those are the sheet, only `ie4uinit.exe -show`, an Explorer restart, or a
+  sign-out will refresh the button.
 
 ## Product rules that must not regress
 
