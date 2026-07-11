@@ -22,7 +22,9 @@ Not every project is a paper workspace. The Preview panel works in any project.
 
 ## The Preview panel (right-hand side)
 
-The Preview panel is always open and always shows a PDF. It renders whichever of these
+The Preview panel sits on the right and shows a PDF. The user can expand it over the whole
+window, or close it to a thin rail — and if it is closed when you push a document, it
+reopens itself, so "put it in the panel" always works. It renders whichever of these
 changed last:
 
 - the compiled `main.tex` — recompiled automatically on every save, so the user sees

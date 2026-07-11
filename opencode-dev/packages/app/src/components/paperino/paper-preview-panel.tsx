@@ -6,6 +6,7 @@ import { useSDK } from "@/context/sdk"
 import { isPdfDataUrl, PAPERINO_DOCUMENT_PREVIEW_EVENT } from "./document-preview"
 import { PdfPages } from "./pdf-pages"
 import { FilePreview, type FilePreviewState } from "./file-preview"
+import { CollapseDiagonalIcon, ExpandDiagonalIcon } from "./panel-icons"
 
 type PaperinoCompileError = { file: string; line: number | null; message: string }
 type PaperinoStatus =
@@ -28,6 +29,8 @@ const bridge = (): PaperinoBridge | undefined => (window as { api?: { paperino?:
 const WIDTH_KEY = "paperino-panel-width"
 const TREE_OPEN_KEY = "paperino-tree-open"
 const TREE_WIDTH_KEY = "paperino-tree-width"
+const OPEN_KEY = "paperino-panel-open"
+const EXPANDED_KEY = "paperino-panel-expanded"
 
 type PanelMode = { kind: "paper" } | { kind: "file"; path: string }
 
@@ -40,6 +43,11 @@ export function PaperPreviewPanel() {
   const [width, setWidth] = createSignal(Number(localStorage.getItem(WIDTH_KEY)) || 480)
   const [paperPdf, setPaperPdf] = createSignal<Uint8Array>()
 
+  // The panel used to be permanently on screen. It can now be closed to a rail and
+  // expanded over the whole window; both survive a restart.
+  const [open, setOpen] = createSignal(localStorage.getItem(OPEN_KEY) !== "0")
+  const [expanded, setExpanded] = createSignal(localStorage.getItem(EXPANDED_KEY) === "1")
+
   const [mode, setMode] = createSignal<PanelMode>({ kind: "paper" })
   const [treeOpen, setTreeOpen] = createSignal(localStorage.getItem(TREE_OPEN_KEY) === "1")
   const [treeWidth, setTreeWidth] = createSignal(Number(localStorage.getItem(TREE_WIDTH_KEY)) || 200)
@@ -49,6 +57,23 @@ export function PaperPreviewPanel() {
   const filePath = () => {
     const m = mode()
     return m.kind === "file" ? m.path : undefined
+  }
+
+  const persistOpen = (next: boolean) => {
+    setOpen(next)
+    localStorage.setItem(OPEN_KEY, next ? "1" : "0")
+  }
+
+  const persistExpanded = (next: boolean) => {
+    setExpanded(next)
+    localStorage.setItem(EXPANDED_KEY, next ? "1" : "0")
+  }
+
+  // Closing drops the expanded state too: reopening from the rail should give back the
+  // split view, not silently swallow the whole window.
+  const closePanel = () => {
+    persistExpanded(false)
+    persistOpen(false)
   }
 
   let readToken = 0
@@ -86,8 +111,10 @@ export function PaperPreviewPanel() {
   const previewDocument = async (source: string) => {
     if (!isPdfDataUrl(source)) return
     // An agent-pushed document preview is an explicit "show me this" — take over
-    // even when a clicked file is on screen.
+    // even when a clicked file is on screen, and reopen the panel if the user closed
+    // it, or the agent would answer "here it is" into a panel nobody can see.
     backToPaper()
+    persistOpen(true)
     try {
       const response = await fetch(source)
       const pdf = new Uint8Array(await response.arrayBuffer())
@@ -147,9 +174,27 @@ export function PaperPreviewPanel() {
 
   return (
     <Show when={api}>
+      <Show
+        when={open()}
+        fallback={
+          <div class="hidden md:flex h-full w-8 shrink-0 flex-col items-center border-l border-border-weaker-base bg-background-base pt-2">
+            <button
+              type="button"
+              class="text-text-weak hover:text-text-base"
+              title="Show preview"
+              onClick={() => persistOpen(true)}
+            >
+              <Icon name="sidebar-right" class="size-4" />
+            </button>
+          </div>
+        }
+      >
       <div
         class="relative hidden md:flex h-full shrink-0 flex-col overflow-hidden border-l border-border-weaker-base bg-background-base"
-        style={{ width: `${width()}px` }}
+        // Expanded, the panel claims the full row. The chat column is `flex-1 min-w-0`,
+        // so it collapses to nothing — which is how the preview takes over the window
+        // without this component having to reach into its siblings.
+        style={{ width: expanded() ? "100%" : `${width()}px` }}
       >
         <div class="flex items-center gap-2 px-3 h-8 shrink-0 border-b border-border-weaker-base">
           <Show
@@ -193,6 +238,25 @@ export function PaperPreviewPanel() {
             onClick={toggleTree}
           >
             <Icon name="folder" class="size-4" />
+          </button>
+          <button
+            type="button"
+            class="shrink-0 flex items-center text-text-weak hover:text-text-base"
+            title={expanded() ? "Restore split view" : "Expand preview"}
+            aria-pressed={expanded()}
+            onClick={() => persistExpanded(!expanded())}
+          >
+            <Show when={expanded()} fallback={<ExpandDiagonalIcon class="size-4" />}>
+              <CollapseDiagonalIcon class="size-4" />
+            </Show>
+          </button>
+          <button
+            type="button"
+            class="shrink-0 flex items-center text-text-weak hover:text-text-base"
+            title="Close preview"
+            onClick={closePanel}
+          >
+            <Icon name="close" class="size-4" />
           </button>
         </div>
         <div class="flex-1 min-h-0 flex">
@@ -268,18 +332,21 @@ export function PaperPreviewPanel() {
             </For>
           </div>
         </Show>
-        <ResizeHandle
-          direction="horizontal"
-          edge="start"
-          size={width()}
-          min={320}
-          max={900}
-          onResize={(w) => {
-            setWidth(w)
-            localStorage.setItem(WIDTH_KEY, String(w))
-          }}
-        />
+        <Show when={!expanded()}>
+          <ResizeHandle
+            direction="horizontal"
+            edge="start"
+            size={width()}
+            min={320}
+            max={900}
+            onResize={(w) => {
+              setWidth(w)
+              localStorage.setItem(WIDTH_KEY, String(w))
+            }}
+          />
+        </Show>
       </div>
+      </Show>
     </Show>
   )
 }
