@@ -1,0 +1,21 @@
+<!-- Paperino's mark: a sheet with its top-right corner turned back, and three lines of set text.
+     This file is the source of truth for the geometry. It is duplicated, deliberately, in
+     opencode-dev/packages/ui/src/components/logo.tsx (which themes it with the app's ink tokens)
+     and in brand/make-icons.mjs (which renders it onto ink for the app icon). If you change the
+     path data, change all three.
+
+     The text lines are CUT OUT with fill-rule="evenodd" rather than painted in a background
+     colour: the mark has to sit on light and dark grounds alike, and a "white" rule would show as
+     a white slab on dark. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 20" width="160" height="200" fill="none">
+  <path
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M2 1H10L14 5V19H2V1Z
+       M4.5 7H11.5V8.4H4.5V7Z
+       M4.5 10.2H11.5V11.6H4.5V10.2Z
+       M4.5 13.4H8.5V14.8H4.5V13.4Z"
+    fill="#12141A"
+  />
+  <path d="M10 1L14 5H10V1Z" fill="#A7ADBA" />
+</svg>

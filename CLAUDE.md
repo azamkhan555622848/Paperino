@@ -157,6 +157,27 @@ file in is enough. Verify with `bun packages/opencode/src/index.ts debug skill`.
   interpreter. Neither MCP server is disturbed (paperbanana uses an absolute python path,
   figures runs on bun).
 
+## Brand
+
+Paperino's mark is a **sheet with a turned corner** ("Fold"), replacing opencode's nested
+squares. `brand/paperino-mark.svg` is the geometry's source of truth; the same path data is
+duplicated in `packages/ui/src/components/logo.tsx` (themed with the app's ink tokens) and in
+`brand/make-icons.mjs` (rendered onto an ink tile for the app icon). Change one, change all three.
+
+- The text rules are **cut out with `fill-rule="evenodd"`**, never painted in a background
+  colour — the mark renders on light and dark grounds, and a "white" rule would show as a white
+  slab on dark.
+- `logo.tsx` exports `Mark`, `Splash` and `Logo`. **The v2 layout — the screen you actually land
+  on — renders none of them**; it had a bare text wordmark. The mark is now in the
+  `session-new-design-view` lockup, which is the only place it is seen day to day.
+- `packages/ui` is vendor code: an upstream merge will revert the logo, exactly as it does the
+  rest of the rebrand.
+- Icons: `node brand/make-icons.mjs` writes `packages/desktop/icons/{dev,beta,prod}/`, then
+  `bun scripts/copy-icons.ts dev` publishes them to `resources/icons`. **`resources/icons` is
+  build output** — `copy-icons.ts` does `rm -rf` on it, so editing it directly is pointless. The
+  icon sets are inside the untracked vendor tree; `brand/` is what is tracked, so the brand is
+  reproducible rather than committed as 4 MB of binaries.
+
 ## Product rules that must not regress
 
 1. Agents never invent results, numbers, datasets or outcomes. Missing material is
