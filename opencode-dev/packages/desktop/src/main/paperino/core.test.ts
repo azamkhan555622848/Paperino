@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { existsSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { classifyChange, compile, isPaperWorkspace, parseTectonicLog } from "./core"
 
@@ -75,6 +76,17 @@ describe("isPaperWorkspace", () => {
   test("true for the fixture, false for a non-workspace dir", () => {
     expect(isPaperWorkspace(FIXTURE)).toBe(true)
     expect(isPaperWorkspace(PAPERINO_ROOT)).toBe(false)
+    expect(isPaperWorkspace(join(PAPERINO_ROOT, "fixtures", "plain-project"))).toBe(false)
+  })
+
+  // A LaTeX project that predates /new-paper has no paperino.yaml. It still gets a live preview:
+  // requiring the marker file left such projects staring at an empty panel forever.
+  test("a main.tex with no paperino.yaml is still a paper workspace", () => {
+    const dir = mkdtempSync(join(tmpdir(), "paperino-test-"))
+    expect(isPaperWorkspace(dir)).toBe(false)
+    writeFileSync(join(dir, "main.tex"), "\\documentclass{article}\\begin{document}x\\end{document}")
+    expect(isPaperWorkspace(dir)).toBe(true)
+    rmSync(dir, { recursive: true, force: true })
   })
 })
 

@@ -20,8 +20,11 @@ function tectonicBinary() {
   return process.env.PAPERINO_TECTONIC || "tectonic"
 }
 
+// A main.tex is the whole precondition: if there is one, we can compile it. paperino.yaml is
+// metadata for the agent, not a gate on the previewer — a LaTeX project that predates
+// /new-paper has no marker file and must still get a live preview.
 export function isPaperWorkspace(dir: string): boolean {
-  return existsSync(join(dir, "paperino.yaml")) && existsSync(join(dir, "main.tex"))
+  return existsSync(join(dir, "main.tex"))
 }
 
 // Tectonic error lines: "error: <file>:<line>: <message>" or "error: <message>".

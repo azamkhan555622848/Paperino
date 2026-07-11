@@ -28,7 +28,9 @@ reopens itself, so "put it in the panel" always works. It renders whichever of t
 changed last:
 
 - the compiled `main.tex` — recompiled automatically on every save, so the user sees
-  exactly what a reviewer would see;
+  exactly what a reviewer would see. **The live compile only happens when `main.tex` sits
+  at the root of the opened project**; a manuscript in a subfolder, or under any other
+  name, is not compiled for you.
 - `.paperino/preview.pdf` — any PDF you put there, shown as-is with no compile step.
 
 **When the user asks to see, show, open, read or preview a paper or document, put it in
@@ -39,10 +41,18 @@ How to get a document into the panel:
 
 | The document is | What you do |
 |---|---|
-| the LaTeX manuscript | nothing — it is already live in the panel |
+| a root `main.tex` | nothing — it is already live in the panel |
+| a `.tex` that is not the root `main.tex` | compile it yourself, then copy the PDF to `.paperino/preview.pdf` |
 | a PDF | `mkdir -p .paperino` then copy it to `.paperino/preview.pdf` |
 | a `.docx`/`.doc` | convert to PDF (below), writing straight to `.paperino/preview.pdf` |
 | several candidates | preview the most recent, say which one, and offer the others |
+
+**Never report that a document is on screen without checking that it is.** A preview is done
+when `.paperino/preview.pdf` exists, or `.paperino/main.pdf` exists for the live compile. If
+neither file is there the user is looking at an empty panel, and saying otherwise is a false
+report. For the same reason, never delete `.paperino/preview.pdf` on the assumption that the
+live compile will take over — confirm `.paperino/main.pdf` exists first, or leave the PDF
+where it is.
 
 Converting Word to PDF — load the `docx` skill and use its script. It drives Word itself;
 there is no LibreOffice on this machine, so do not reach for `soffice`.
