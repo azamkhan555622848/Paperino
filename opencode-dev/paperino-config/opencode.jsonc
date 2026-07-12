@@ -1,7 +1,37 @@
 {
   "$schema": "https://opencode.ai/config.json",
   // Default writing model — change freely in the model picker.
-  "model": "openrouter/anthropic/claude-sonnet-5",
+  // GPT-5.6 Terra, billed against the ChatGPT subscription rather than per token:
+  // `opencode auth login` -> OpenAI -> ChatGPT drives the OAuth in the built-in codex
+  // plugin (plugin/openai/codex.ts), which routes requests at
+  // chatgpt.com/backend-api/codex/responses. Usage is quota-shaped (5-hour / weekly
+  // windows), not token-shaped.
+  "model": "openai/gpt-5.6-terra",
+  // models.dev's catalog stops at gpt-5.2, so Terra has to be declared by hand or it
+  // never reaches the model picker. The codex plugin's OAuth gate admits it on its own —
+  // it keeps any `gpt-<major>.<minor>` above 5.4 (codex.ts:288) — and the reasoning-effort
+  // tiers are derived from the version in the id, so 5.6 gets the full set with no extra
+  // config.
+  "provider": {
+    "openai": {
+      "models": {
+        "gpt-5.6-terra": {
+          "id": "gpt-5.6-terra",
+          "name": "GPT-5.6 Terra",
+          "reasoning": true,
+          "tool_call": true,
+          "attachment": true,
+          // Inherited from the numbers the codex plugin pins for gpt-5.5 (codex.ts:300).
+          // If OpenAI publishes different limits for Terra, correct them here.
+          "limit": {
+            "context": 400000,
+            "input": 272000,
+            "output": 128000
+          }
+        }
+      }
+    }
+  },
   // Paperino does not use InteJer's hardware/IoT MCP servers, which come from the
   // shared global config (~/.config/opencode/opencode.jsonc). Disable them here so
   // the paper-writing agent has a clean tool surface — without touching the global file.
