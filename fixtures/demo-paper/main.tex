@@ -11,4 +11,16 @@
 \input{sections/01-abstract}
 \input{sections/02-introduction}
 
+% Figure Studio v2 acceptance: authored as code, typeset with KaTeX, emitted print-true
+% (5.5in wide), so it sits at ~1:1 next to the Computer Modern body text.
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig-gqa-amplification/build/fig-gqa-amplification.pdf}
+  \caption{\textbf{Mechanism of GQA amplification.} (a) One compressed KV head is read by
+  every query head in its group: the shared vector residual adds coherently, while
+  independent per-channel residuals add stochastically. (b) The resulting error scales and
+  the crossover condition.}
+  \label{fig:gqa-amplification}
+\end{figure}
+
 \end{document}

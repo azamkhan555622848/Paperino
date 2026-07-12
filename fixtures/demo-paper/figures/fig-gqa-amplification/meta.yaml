@@ -1,0 +1,14 @@
+id: fig-gqa-amplification
+archetype: schematic
+width: full
+caption: "Mechanism of GQA amplification. (a) One compressed KV head is read by
+  every query head in its group: the shared vector residual adds coherently,
+  while independent per-channel residuals add stochastically. (b) The resulting
+  error scales and the crossover condition."
+alt: "Mechanism of GQA amplification. (a) One compressed KV head is read by
+  every query head in its group: the shared vector residual adds coherently,
+  while independent per-channel residuals add stochastically. (b) The resulting
+  error scales and the crossover condition."
+claim: A shared vector residual is read by every query head in the group and so
+  adds coherently (error ~ g), while independent per-channel residuals add
+  stochastically (error ~ sqrt(g d)).

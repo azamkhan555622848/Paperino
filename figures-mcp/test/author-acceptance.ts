@@ -1,0 +1,103 @@
+// ACCEPTANCE (spec 2026-07-13 §6): rebuild the GQA-amplification figure — the figure that
+// triggered the publication-grade retrofit — in the new idiom, inside fixtures/demo-paper.
+// Same information design as the original; publication clothes.
+//
+//   bun test/author-acceptance.ts
+//
+// Then lint it, \includegraphics it, compile, and LOOK at it next to Computer Modern text.
+import { writeFileSync, existsSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import { scaffold } from "../src/scaffold"
+import { render } from "../src/render"
+
+const ws = join(import.meta.dir, "..", "..", "fixtures", "demo-paper")
+const dir = join(ws, "figures", "fig-gqa-amplification")
+if (existsSync(dir)) rmSync(dir, { recursive: true })
+
+await scaffold(ws, {
+  name: "fig-gqa-amplification",
+  archetype: "schematic",
+  claim:
+    "A shared vector residual is read by every query head in the group and so adds coherently (error ~ g), while independent per-channel residuals add stochastically (error ~ sqrt(g d)).",
+  caption:
+    "Mechanism of GQA amplification. (a) One compressed KV head is read by every query head in its group: the shared vector residual adds coherently, while independent per-channel residuals add stochastically. (b) The resulting error scales and the crossover condition.",
+  width: "full",
+})
+
+writeFileSync(join(dir, "data.json"), "{}\n")
+writeFileSync(
+  join(dir, "figure.html"),
+  `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    #fig-root { display: flex; gap: 20px; padding: 10px; align-items: stretch; }
+    #mechanism { flex: 3; display: flex; flex-direction: column; gap: 26px; }
+    #consequence { flex: 2; display: flex; flex-direction: column; gap: 8px; }
+    .lane { display: flex; gap: 10px; align-items: center; }
+    .tag { font-size: var(--fs-label); font-weight: 700; width: 34px; flex-shrink: 0; }
+    .vq { color: var(--accent-warm); }
+    .sc { color: var(--accent); }
+    .heads { display: flex; gap: 4px; flex: 1.5; }
+    .heads .card { flex: 1; text-align: center; padding: 6px 4px; }
+    .kv { flex: 1.1; }
+    .sum { flex: 1.2; }
+    .stmt b { display: block; margin-bottom: 3px; font-size: var(--fs-label); }
+    .stmt { padding: 7px 9px; }
+  </style>
+</head>
+<body>
+  <div id="fig-root">
+    <div id="mechanism">
+      <span class="panel-label" id="panel-a">(a)</span>
+      <div class="lane" id="lane-vq">
+        <span class="tag vq" id="tag-vq">VQ</span>
+        <div class="card kv" id="vq-kv"><h3>KV head <span class="math">j</span></h3><p>shared <span class="math">\\Delta_{\\mathrm{vec}}</span></p></div>
+        <div class="heads" id="vq-heads">
+          <div class="card" id="vq-h1"><p><span class="math">h</span></p></div>
+          <div class="card" id="vq-h2"><p><span class="math">\\cdots</span></p></div>
+          <div class="card" id="vq-h3"><p><span class="math">h{+}g{-}1</span></p></div>
+        </div>
+        <div class="card sum" id="vq-sum"><h3>coherent</h3><p><span class="math">O(g\\,\\sigma_{\\mathrm{vec}})</span></p></div>
+      </div>
+      <div class="lane" id="lane-sc">
+        <span class="tag sc" id="tag-sc">scalar</span>
+        <div class="card kv" id="sc-kv"><h3>KV head <span class="math">j</span></h3><p>independent <span class="math">\\Delta_{\\mathrm{ch},h}</span></p></div>
+        <div class="heads" id="sc-heads">
+          <div class="card" id="sc-h1"><p><span class="math">h</span></p></div>
+          <div class="card" id="sc-h2"><p><span class="math">\\cdots</span></p></div>
+          <div class="card" id="sc-h3"><p><span class="math">h{+}g{-}1</span></p></div>
+        </div>
+        <div class="card sum" id="sc-sum"><h3>stochastic</h3><p><span class="math">O(\\sqrt{g\\,d}\\,\\sigma_{\\mathrm{ch}})</span></p></div>
+      </div>
+    </div>
+    <div id="consequence">
+      <span class="panel-label" id="panel-b">(b)</span>
+      <div class="card stmt" id="stmt-vq"><b class="vq">shared residual</b><span class="math">\\mathcal{E}\\propto g\\,\\sigma_{\\mathrm{vec}}</span></div>
+      <div class="card stmt" id="stmt-sc"><b class="sc">independent residuals</b><span class="math">\\mathcal{E}\\propto\\sqrt{g\\,d}\\,\\sigma_{\\mathrm{ch}}</span></div>
+      <div class="card stmt" id="stmt-crossover"><b>VQ wins when</b><span class="math">\\sigma_{\\mathrm{vec}}^{2}\\lesssim (d/g)\\,\\sigma_{\\mathrm{ch}}^{2}</span></div>
+    </div>
+  </div>
+  <script type="module">
+    import { renderMath } from "../lib/math.js"
+    import { arrow, figReady } from "../lib/annot.js"
+    await renderMath()
+    // The point of the figure: ONE KV head feeds every query head in the group, and those
+    // paths then aggregate. Both hops must be drawn, or the mechanism is not shown.
+    arrow("#vq-kv", "#vq-heads", { bow: 0.1 })
+    arrow("#vq-heads", "#vq-sum", { bow: 0.1 })
+    arrow("#sc-kv", "#sc-heads", { bow: 0.1 })
+    arrow("#sc-heads", "#sc-sum", { bow: 0.1 })
+    figReady()
+  </script>
+</body>
+</html>
+`,
+)
+
+const result = await render(ws, "fig-gqa-amplification")
+if (!result.ok) throw new Error(`render failed: ${result.error}\n${result.consoleOutput.join("\n")}`)
+console.log("rendered:", result.png)
+console.log("pdf:", result.pdf)

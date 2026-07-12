@@ -1,43 +1,53 @@
-/* Paperino figure design tokens — Anthropic-look defaults.
-   Figures reference ONLY these vars; raw hex/rgb in figure.html is a lint failure. */
+/* paperino-tokens v2 */
+/* Publication style (spec 2026-07-13). Figures reference ONLY these vars; raw hex/rgb
+   in figure.html is a lint failure. Text faces are the KaTeX dist's Computer-Modern-
+   derived fonts (SIL OFL), served from lib/katex/fonts/ — declared here so text works
+   in figures that contain no math. The first line above is a version marker: scaffold
+   refreshes vendored copies when it differs. */
+@font-face { font-family: "KaTeX_Main"; src: url("lib/katex/fonts/KaTeX_Main-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "KaTeX_Main"; src: url("lib/katex/fonts/KaTeX_Main-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "KaTeX_Main"; src: url("lib/katex/fonts/KaTeX_Main-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "KaTeX_Main"; src: url("lib/katex/fonts/KaTeX_Main-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "KaTeX_Typewriter"; src: url("lib/katex/fonts/KaTeX_Typewriter-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; }
 :root {
-  /* neutrals */
+  /* ink */
   --bg: #ffffff;
-  --surface: #f7f7f8;
-  --border: #d9d9de;
-  --border-strong: #b3b3bc;
-  --text: #1a1a1f;
-  --text-muted: #6b6b76;
-  /* categorical accents (lint: <= 5 in one figure) */
-  --accent: #b45309;          /* amber — primary highlight */
-  --accent-soft: #fdf3e3;     /* amber fill */
-  --pos: #15803d;             /* green */
-  --neg: #b91c1c;             /* red */
-  --ref: #1d4ed8;             /* blue */
-  /* type */
-  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "Cascadia Mono", Consolas, monospace;
-  --fs-body: 15px;
-  --fs-label: 13px;
-  --fs-small: 11px;
+  --surface: #f5f5f5;          /* the only fill; use sparingly */
+  --border: #999999;
+  --border-strong: #333333;
+  --text: #111111;
+  --text-muted: #555555;
+  /* two accents, distinguishable in grayscale (lint: <= 5 categorical) */
+  --accent: #1a4f9c;           /* restrained blue */
+  --accent-warm: #b03a2e;      /* warm red */
+  /* type — pt-true at the 96dpi PDF mapping (12px = 9pt) */
+  --font-text: "KaTeX_Main", Georgia, serif;
+  --font-mono: "KaTeX_Typewriter", Consolas, monospace;
+  --fs-body: 12px;             /* 9pt */
+  --fs-label: 10.67px;         /* 8pt */
+  --fs-small: 9.34px;          /* 7pt — the lint floor */
   /* strokes */
-  --stroke: 1.5px;
-  --stroke-thin: 1px;
+  --stroke: 1.6px;             /* 1.2pt emphasis */
+  --stroke-thin: 1.07px;       /* 0.8pt hairline */
 }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-ui);
+  font-family: var(--font-text);
   font-size: var(--fs-body);
 }
+/* A paper box: square corners, hairline border, no fill, no shadow. */
 .card {
-  background: var(--surface);
-  border: var(--stroke-thin) solid var(--border);
-  border-radius: 8px;
-  padding: 14px 16px;
+  background: var(--bg);
+  border: var(--stroke-thin) solid var(--border-strong);
+  border-radius: 0;
+  padding: 8px 10px;
 }
-.card h3 { margin: 0 0 6px; font-size: var(--fs-body); font-weight: 600; }
+.card h3 { margin: 0 0 4px; font-size: var(--fs-body); font-weight: 700; }
 .card p { margin: 0; color: var(--text-muted); font-size: var(--fs-label); }
-.mono { font-family: var(--font-mono); font-size: var(--fs-label); }
+.panel-label { font-weight: 700; font-size: var(--fs-body); }   /* (a) (b) (c) */
+.mono { font-family: var(--font-mono); font-size: var(--fs-label); }  /* real code ONLY — math goes in .math spans */
 .muted { color: var(--text-muted); }
+/* KaTeX target; lib/math.js renders these. Keep font-size inherited. */
+.math {}
