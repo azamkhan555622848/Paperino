@@ -21,11 +21,25 @@ function gate(id: string): boolean {
   return match ? parseFloat(match[1]!) > 5.4 : false
 }
 
-test("the subscription gate admits the models Paperino ships", () => {
-  // The 5.6 family clears the version rule on its own — no allowlist entry needed.
-  for (const id of ["gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-sol"]) expect(gate(id)).toBe(true)
-  // 5.3 <= 5.4, so the newest Codex reaches a subscription user ONLY if it is allowlisted.
-  expect(gate("gpt-5.3-codex")).toBe(true)
+// The verdicts below are not preferences — they are what chatgpt.com/backend-api/codex/responses
+// answered to a one-token request per id on a real ChatGPT account (2026-07-13). A refused model
+// that stays in the picker fails SILENTLY: the user sends a message and simply gets nothing back.
+test("the gate admits exactly the models the subscription actually serves", () => {
+  // Clear the > 5.4 version rule on their own, and the backend streams a response.
+  expect(gate("gpt-5.6-terra")).toBe(true)
+  expect(gate("gpt-5.6-sol")).toBe(true)
+  // Allowlisted, and served.
+  expect(gate("gpt-5.5")).toBe(true)
+})
+
+test("the gate hides every model the subscription refuses", () => {
+  // 404 "Model not found" — offered by the picker, and the cause of an empty reply.
+  expect(gate("gpt-5.6-luna")).toBe(false)
+  // 400 "not supported when using Codex with a ChatGPT account".
+  expect(gate("gpt-5.6")).toBe(false)
+  expect(gate("gpt-5.3-codex")).toBe(false)
+  // Allowlisted by UPSTREAM, and still refused by the account — so it must be named explicitly.
+  expect(gate("gpt-5.3-codex-spark")).toBe(false)
 })
 
 test("the gate still rejects what upstream rejects", () => {

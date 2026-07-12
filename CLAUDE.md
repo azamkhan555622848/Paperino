@@ -268,6 +268,39 @@ rendered config must contain no `{{` and no dev path.
   delete nor rename works), package to another output dir with
   `-c.directories.output=dist2` rather than hunting the handle.
 
+## Onboarding: the ChatGPT subscription and the figure key
+
+The first-run wizard (`components/paperino/onboarding-wizard.tsx`) is welcome → runtime setup →
+sign in with ChatGPT → Nano Banana key. It does **not** reimplement OAuth: it opens the fork's own
+`DialogConnectProvider` with `openai` preselected, *pushed* onto the dialog stack so the wizard
+survives underneath it.
+
+- **It must be mounted inside a ServerSync/ServerSDK subtree.** Solid resolves context through the
+  *owner* chain, and `dialog.show` mounts with the caller's owner — so a wizard mounted on the
+  router root throws `ServerSync context must be used within a context provider` the moment a step
+  calls `useProviders`. That takes the whole app into the root ErrorBoundary while the dialog keeps
+  its last painted DOM, so the symptom is a footer that advances over frozen content. Those
+  providers are **per route**: `SelectedServerProviders` (home/sessions) and `ResolvedDraftRoute`
+  (`/new-session`). No single ancestor has them, so the wizard is mounted in both, with a
+  module-level flag so it shows at most once per run.
+- **models.dev listing a model does not mean the subscription serves it.** The picker is fed from
+  models.dev (fetched at runtime), but the authority is `chatgpt.com/backend-api/codex/responses`,
+  and a model it refuses fails *silently* — the user sends a message and simply gets nothing back.
+  Probed against a real account (2026-07-13): **`gpt-5.6-terra`, `gpt-5.6-sol` and `gpt-5.5` are
+  served**; `gpt-5.6-luna` 404s ("Model not found"), and `gpt-5.6`, `gpt-5.3-codex` and even
+  `gpt-5.3-codex-spark` (*which upstream allowlists*) return 400 "not supported when using Codex
+  with a ChatGPT account". `codex.ts`'s `DISALLOWED_MODELS` therefore names every refusal, and its
+  comment carries the probe table. Re-probe before adding an id; do not trust the catalog. Terra and
+  Sol need no allowlist entry — they clear the `> 5.4` version rule on their own.
+- **The figure key is one paste, either provider.** The wizard writes it under the `openrouter` or
+  `google` provider id, and `paperbanana-mcp/server.py:resolve_credentials` reads it back out of
+  `auth.json` by those exact names (honoring `XDG_DATA_HOME`, so a packaged build reads its own
+  isolated store). The choice is load-bearing: OpenRouter namespaces model ids
+  (`google/gemini-3.1-flash-image-preview`) and Google's own API takes the bare id — so the ids are
+  derived from the resolved source and **must not** be pinned in the config. `apply_credentials()`
+  also *pops* a stale `OPENROUTER_API_KEY` when Google wins, because OpenRouter beats Gemini in
+  PaperBanana's own auto-detection and would otherwise be handed a Google key.
+
 ## Product rules that must not regress
 
 1. Agents never invent results, numbers, datasets or outcomes. Missing material is

@@ -12,11 +12,27 @@ const ISSUER = "https://auth.openai.com"
 const CODEX_API_ENDPOINT = "https://chatgpt.com/backend-api/codex/responses"
 const OAUTH_PORT = 1455
 const OAUTH_POLLING_SAFETY_MARGIN_MS = 3000
-// gpt-5.3-codex is the newest Codex (2026-02-05), but 5.3 does not clear the > 5.4 version rule in
-// models() below, and only Spark was named here — so a subscription user was never offered it.
-// Paperino ships it. An upstream merge reverts this line, exactly like the rebrand.
-const ALLOWED_MODELS = new Set(["gpt-5.5", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.4", "gpt-5.4-mini"])
-const DISALLOWED_MODELS = new Set(["gpt-5.5-pro"])
+// These lists decide which models a ChatGPT-subscription user is OFFERED, and the picker is not
+// free to guess: the Codex backend is the authority, and a model it refuses reaches the user as an
+// empty reply, not an error. Probed against a real ChatGPT account (2026-07-13) by POSTing a
+// one-token request per id to chatgpt.com/backend-api/codex/responses:
+//
+//   gpt-5.6-terra  OK          gpt-5.6-luna        404 "Model not found"
+//   gpt-5.6-sol    OK          gpt-5.6             400 "not supported ... with a ChatGPT account"
+//   gpt-5.5        OK          gpt-5.3-codex       400 (same)
+//                              gpt-5.3-codex-spark 400 (same) — allowlisted upstream, still refused
+//
+// Terra and Sol need no entry here: they clear the > 5.4 rule in models() on their own. Everything
+// the account refuses is named below, so it never appears in the picker. Re-probe before adding an
+// id; models.dev listing one proves only that it exists, not that the subscription serves it.
+const ALLOWED_MODELS = new Set(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"])
+const DISALLOWED_MODELS = new Set([
+  "gpt-5.5-pro",
+  "gpt-5.6",
+  "gpt-5.6-luna",
+  "gpt-5.3-codex",
+  "gpt-5.3-codex-spark",
+])
 
 interface PkceCodes {
   verifier: string

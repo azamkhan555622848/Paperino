@@ -245,8 +245,10 @@ function ChatGPTStep() {
 
   return (
     <div class="flex flex-col gap-4">
+      {/* Name only what the Codex backend actually serves a ChatGPT account — see the probe table
+          in plugin/openai/codex.ts. Luna is listed by models.dev but 404s here. */}
       <div class="text-14-regular text-text-base">
-        Sign in with your ChatGPT account to write with GPT-5.6 Terra, Luna, Sol and GPT-5.3 Codex.
+        Sign in with your ChatGPT account to write with GPT-5.6 Terra, GPT-5.6 Sol and GPT-5.5.
       </div>
       <div class="text-14-regular text-text-weak">
         This uses your existing Pro or Plus subscription — no API key, and no per-token bill. Choose
