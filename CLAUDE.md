@@ -109,9 +109,31 @@ every number, one SVG overlay for arrows and braces. Five tools — `figure_scaf
 - SVG presentation attributes do not resolve `var()`. Set stroke and fill via inline
   `style`.
 - Lint rule 8 (`provenance`) makes a hallucinated number in a chart or table a hard
-  failure. It must still exempt data-sourced *string* cells (`"5C"`) and see through
-  thousands separators. This rule is the point of the subsystem — do not weaken it to make
-  a figure pass.
+  failure. It must still exempt data-sourced *string* cells (`"5C"`), see through
+  thousands separators, and ignore digits inside a formula (the 2 in σ² is an exponent,
+  not a cell). This rule is the point of the subsystem — do not weaken it to make a
+  figure pass.
+- **v2 (2026-07-13) is publication-grade** (spec `2026-07-13-figure-studio-publication-grade-design.md`).
+  The old north star was transformer-circuits — a *blog* — so tokens shipped Segoe UI and
+  rounded pastel cards, `.mono` was the only way to write a symbol (hence monospace
+  pseudo-math), and the review exemplars were blog screenshots. Now: tokens are the KaTeX
+  dist's Computer-Modern-derived faces, math is real KaTeX in `.math` spans, and figures
+  are authored **print-true** (528px = 5.5in text width, 312px = 3.25in column; 12px = 9pt
+  at Chromium's 96dpi PDF mapping, so `\includegraphics[width=\linewidth]` lands ~1:1).
+  Lint is 13 rules — `pseudo-math`, `web-chrome` (radius/shadow) and a `KaTeX_*`
+  `font-allowlist` are hard failures.
+- **KaTeX's hidden MathML twin is not ink.** KaTeX emits a MathML copy of every formula
+  for screen readers, *clipped* rather than `display:none`, so it still has client rects.
+  The render worker skips `.katex-mathml` — left in, it duplicated every glyph (bogus
+  overlap), carried `font-family: math` (bogus font-allowlist), and its exponents read as
+  untraceable numbers (bogus provenance). KaTeX internals are also exempt from the 7pt
+  floor and from intra-formula overlap: LaTeX itself sets scripts at 7/5pt, and KaTeX
+  absolutely positions glyph boxes.
+- `figure_scaffold` **auto-refreshes** vendored `tokens.css` + `lib/` when the version
+  marker on line 1 of tokens.css differs. Vendoring only-if-absent would strand existing
+  workspaces on the design system they were born with. Exemplars are self-authored —
+  regenerate with `bun test/author-exemplars.ts` after touching tokens or templates, and
+  **look at the PNGs**: they are the bar the vision review steers every figure toward.
 
 ## paperbanana-mcp
 

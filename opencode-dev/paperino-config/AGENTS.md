@@ -141,6 +141,18 @@ The workflow — never skip a step, never draw blind:
 4. Edit `figure.html`. Layout is HTML with flex/grid. Annotations are `arrow()`,
    `brace()` and `highlight()` from `../lib/annot.js`, anchored to element IDs, with one
    scalar `bow` for the swoop. Colours are `var(--…)` from `../tokens.css` only.
+   **The figure must look like it was made with TikZ, not like a web app.** Concretely:
+   - **Every symbol and formula goes in a `.math` span** —
+     `<span class="math">\sigma^2_{\mathrm{ch}} \lesssim (d/g)\,\sigma^2_{\mathrm{vec}}</span>`.
+     KaTeX typesets it (`await renderMath()` from `../lib/math.js` before annotations —
+     the templates already do this). Writing `sigma_ch^2` or `x^2` as plain text is a
+     **hard lint failure**, and it is the single most damning thing a figure can carry
+     into a paper.
+   - **No headline inside the figure.** The caption explains; the figure shows. Panels
+     are labelled `(a)`, `(b)` with `.panel-label`. Keep in-figure prose to a minimum.
+   - **No web chrome.** Rounded corners, drop shadows, pill badges and UI fonts are lint
+     failures. Boxes are square hairline rules; charts carry a quantitative axis with
+     titles; tables use booktabs rules and no vertical lines.
 5. `figure_render` → `figure_lint`. Each lint error names a selector; patch that element.
    Repeat until lint passes.
 6. `figure_review` — you receive your render plus two exemplars. Judge it against the
