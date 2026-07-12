@@ -32,15 +32,18 @@
     },
     // PaperBanana on the portable CPython that first-run setup installs. Generation takes
     // a minute or more, so the default MCP timeout is not enough.
+    //
+    // The models are NOT pinned here. Their id shape depends on which key the user connected —
+    // OpenRouter namespaces them ("google/gemini-...") and Google's own API does not — so
+    // server.py derives both from the resolved credential. Pinning the prefixed ids here would
+    // hand a Google-key user an id their endpoint has never heard of.
     "paperbanana": {
       "type": "local",
       "command": ["{{USERDATA}}/python/python.exe", "{{RESOURCES}}/paperbanana/server.py"],
       "enabled": true,
       "timeout": 600000,
       "environment": {
-        "PAPERBANANA_ROOT": "{{RESOURCES}}/paperbanana/PaperBanana-main",
-        "MAIN_MODEL_NAME": "google/gemini-3.5-flash",
-        "IMAGE_GEN_MODEL_NAME": "google/gemini-3.1-flash-image-preview"
+        "PAPERBANANA_ROOT": "{{RESOURCES}}/paperbanana/PaperBanana-main"
       }
     }
   }

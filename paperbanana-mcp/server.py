@@ -5,16 +5,14 @@ without touching its internals. We deliberately do NOT import demo.py: that modu
 imports streamlit and gradio at the top, which a headless server has no use for. The
 same pipeline objects it builds are constructed here instead.
 
-Models are PINNED and never inherited from the chat session (umbrella spec, 3.2).
-PaperBanana resolves them from the environment:
+Models are PINNED and never inherited from the chat session (umbrella spec, 3.2), so a figure
+looks and costs the same whichever model the user is chatting with. Nano Banana does the image
+synthesis; a vision-INPUT VLM backs the Critic, which must SEE the rendered candidate.
 
-  IMAGE_GEN_MODEL_NAME  google/gemini-3.1-flash-image-preview   ("Nano Banana")
-  MAIN_MODEL_NAME       google/gemini-3.5-flash                 (vision-INPUT VLM; the
-                                                                 Critic must see the
-                                                                 rendered candidate)
-  OPENROUTER_API_KEY    read from the opencode auth store
-
-So a figure looks and costs the same whichever model the user is chatting with.
+The key comes from whichever provider the user connected in onboarding — OpenRouter or Google
+direct — and that choice also decides the id shape and the endpoint. PaperBanana needs no patch
+for either: its router auto-detects (OpenRouter > Gemini) and the Visualizer falls back to native
+Gemini image generation when no OpenRouter client exists. See resolve_credentials().
 """
 
 from __future__ import annotations
@@ -23,6 +21,7 @@ import base64
 import json
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 # In a packaged install the PaperBanana source lives in the app's resources, not beside
@@ -32,11 +31,12 @@ PAPERBANANA = Path(
 )
 sys.path.insert(0, str(PAPERBANANA))
 
-IMAGE_MODEL = os.environ.get("PAPERINO_FIGURE_IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")
-VLM_MODEL = os.environ.get("PAPERINO_FIGURE_VLM", "google/gemini-3.5-flash")
-
-os.environ.setdefault("IMAGE_GEN_MODEL_NAME", IMAGE_MODEL)
-os.environ.setdefault("MAIN_MODEL_NAME", VLM_MODEL)
+# (Nano Banana, Critic VLM) per key source. OpenRouter namespaces every model ("google/x");
+# Google's own API takes the bare id and would not recognise the prefixed one. Same weights.
+_MODELS = {
+    "openrouter": ("google/gemini-3.1-flash-image-preview", "google/gemini-3.5-flash"),
+    "google": ("gemini-3.1-flash-image-preview", "gemini-3.5-flash"),
+}
 
 
 def _extension(blob: bytes) -> str:
@@ -48,26 +48,78 @@ def _extension(blob: bytes) -> str:
     return ".bin"
 
 
-def _openrouter_key() -> str:
-    """PaperBanana reads OPENROUTER_API_KEY; opencode keeps it in its auth store."""
-    key = os.environ.get("OPENROUTER_API_KEY")
-    if key:
-        return key
-    # The packaged app isolates its auth store inside its own userData (XDG_DATA_HOME) so
-    # it never shares credentials with InteJer; dev falls back to the standard location.
+@dataclass(frozen=True)
+class Credentials:
+    source: str  # "openrouter" | "google"
+    key: str
+    image_model: str
+    vlm_model: str
+
+
+def resolve_credentials(env: dict, auth: dict) -> Credentials:
+    """Pick the figure-generation credential. Env beats the auth store; OpenRouter beats Google.
+
+    Pure on purpose — the precedence rules ARE the behaviour, so they should be testable without
+    an auth.json on disk. `auth` is a parsed auth.json: {"openrouter": {"key": "..."}, ...}.
+    """
+
+    def make(source: str, key: str) -> Credentials:
+        image, vlm = _MODELS[source]
+        # An explicit pin still wins, so a different image model can be tried without a code edit.
+        return Credentials(
+            source=source,
+            key=key,
+            image_model=env.get("PAPERINO_FIGURE_IMAGE_MODEL") or image,
+            vlm_model=env.get("PAPERINO_FIGURE_VLM") or vlm,
+        )
+
+    if env.get("OPENROUTER_API_KEY"):
+        return make("openrouter", env["OPENROUTER_API_KEY"])
+    for name in ("GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"):
+        if env.get(name):
+            return make("google", env[name])
+    for source in ("openrouter", "google"):
+        key = (auth.get(source) or {}).get("key", "")
+        if key:
+            return make(source, key)
+    raise RuntimeError(
+        "No figure-generation key. Paste an OpenRouter key (openrouter.ai/keys) or a Google AI "
+        "Studio key (aistudio.google.com/apikey) in Paperino's onboarding, or set "
+        "OPENROUTER_API_KEY / GOOGLE_API_KEY."
+    )
+
+
+def _auth_store() -> dict:
+    # The packaged app isolates its auth store inside its own userData (XDG_DATA_HOME) so it never
+    # shares credentials with InteJer; dev falls back to the standard location.
     data_home = os.environ.get("XDG_DATA_HOME")
     base = Path(data_home) if data_home else Path.home() / ".local" / "share"
     auth = base / "opencode" / "auth.json"
-    if auth.exists():
-        data = json.loads(auth.read_text(encoding="utf-8"))
-        key = (data.get("openrouter") or {}).get("key", "")
-        if key:
-            os.environ["OPENROUTER_API_KEY"] = key
-            return key
-    raise RuntimeError("no OpenRouter key: set OPENROUTER_API_KEY, or sign in to the openrouter provider in the app")
+    if not auth.exists():
+        return {}
+    try:
+        return json.loads(auth.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
 
 
-def _build_processor(exp_mode: str):
+def apply_credentials() -> Credentials:
+    """Resolve, then shape the environment PaperBanana's client factory reads."""
+    creds = resolve_credentials(dict(os.environ), _auth_store())
+    if creds.source == "openrouter":
+        os.environ["OPENROUTER_API_KEY"] = creds.key
+    else:
+        # OpenRouter wins PaperBanana's own auto-detection (generation_utils.call_model_with_retry
+        # _async), so a stale OPENROUTER_API_KEY would route a Google user through OpenRouter
+        # carrying a Google key — a 401 with the wrong provider's name on it.
+        os.environ.pop("OPENROUTER_API_KEY", None)
+        os.environ["GOOGLE_API_KEY"] = creds.key
+    os.environ["IMAGE_GEN_MODEL_NAME"] = creds.image_model
+    os.environ["MAIN_MODEL_NAME"] = creds.vlm_model
+    return creds
+
+
+def _build_processor(exp_mode: str, creds: Credentials):
     """The object graph demo.py's process_parallel_candidates builds, minus the UI."""
     from agents.critic_agent import CriticAgent
     from agents.planner_agent import PlannerAgent
@@ -85,8 +137,8 @@ def _build_processor(exp_mode: str):
         split_name="demo",
         exp_mode=exp_mode,
         retrieval_setting="none",  # PaperBananaBench is not installed; no few-shot retrieval
-        main_model_name=VLM_MODEL,
-        image_gen_model_name=IMAGE_MODEL,
+        main_model_name=creds.vlm_model,
+        image_gen_model_name=creds.image_model,
         work_dir=PAPERBANANA,
     )
     processor = PaperVizProcessor(
@@ -103,12 +155,14 @@ def _build_processor(exp_mode: str):
 
 
 async def _generate(method_content: str, caption: str, aspect_ratio: str, candidates: int, critic_rounds: int):
-    _openrouter_key()
+    # Resolve BEFORE importing PaperBanana: generation_utils builds its API clients at import
+    # time from the environment, so the key and the model ids have to be in place first.
+    creds = apply_credentials()
     from utils.legacy_generation_options import generation_additional_info, normalize_legacy_input_content
     from utils.legacy_ui_results import resolve_final_output
 
     exp_mode = "demo_planner_critic" if critic_rounds > 0 else "dev_planner"
-    processor, _ = _build_processor(exp_mode)
+    processor, _ = _build_processor(exp_mode, creds)
 
     base = {
         "filename": "paperino_input",
@@ -162,9 +216,13 @@ def _serve() -> None:
         """
         out_dir = Path(workspace) / "figures" / name
         out_dir.mkdir(parents=True, exist_ok=True)
+        creds = apply_credentials()
         images = await _generate(method_content, caption, aspect_ratio, candidates, critic_rounds)
         if not images:
-            return "PaperBanana produced no image (every candidate failed). Check the OpenRouter key and model access."
+            return (
+                f"PaperBanana produced no image (every candidate failed). Check the {creds.source} "
+                f"key and that it can reach {creds.image_model}."
+            )
 
         paths = []
         for index, blob in enumerate(images):
@@ -174,7 +232,7 @@ def _serve() -> None:
             paths.append(str(path))
         winner = Path(paths[0]).name
         return (
-            f"generated {len(paths)} candidate(s) with {IMAGE_MODEL}\n"
+            f"generated {len(paths)} candidate(s) with {creds.image_model} via {creds.source}\n"
             + "\n".join(paths)
             + f"\n\nEmbed the winner: \\includegraphics[width=\\linewidth]{{figures/{name}/{winner}}}"
         )
@@ -185,11 +243,12 @@ def _serve() -> None:
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         # Offline: models pinned, key resolvable, pipeline importable without streamlit.
-        _openrouter_key()
-        processor, cfg = _build_processor("demo_planner_critic")
+        creds = apply_credentials()
+        processor, cfg = _build_processor("demo_planner_critic", creds)
         print(
             json.dumps(
                 {
+                    "key_source": creds.source,
                     "image_model": cfg.image_gen_model_name,
                     "vlm_model": cfg.main_model_name,
                     "processor": type(processor).__name__,

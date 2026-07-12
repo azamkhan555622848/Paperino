@@ -7,7 +7,7 @@ Writes fixtures/demo-paper/figures/fig-banana-smoke/fig-banana-smoke.jpg
 import asyncio
 from pathlib import Path
 
-from server import IMAGE_MODEL, _extension, _generate
+from server import _extension, _generate, apply_credentials
 
 WORKSPACE = Path(__file__).resolve().parent.parent / "fixtures" / "demo-paper"
 NAME = "fig-banana-smoke"
@@ -20,6 +20,10 @@ CAPTION = "Overview of the Paperino compile-and-preview loop."
 
 
 async def main() -> None:
+    # Which key is in play, and therefore which endpoint and id shape, is the thing most worth
+    # printing when this fails.
+    creds = apply_credentials()
+    print(f"key source: {creds.source} | image model: {creds.image_model}")
     images = await _generate(METHOD, CAPTION, aspect_ratio="16:9", candidates=1, critic_rounds=0)
     print(f"candidates returned: {len(images)}")
     if not images:
@@ -29,7 +33,6 @@ async def main() -> None:
     extension = _extension(images[0])
     path = out_dir / f"{NAME}{extension}"
     path.write_bytes(images[0])
-    print(f"model: {IMAGE_MODEL}")
     print(f"wrote: {path} ({len(images[0])} bytes)")
     print("recognised image format:", extension != ".bin")
 
