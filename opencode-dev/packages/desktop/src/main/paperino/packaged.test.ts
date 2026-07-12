@@ -83,6 +83,10 @@ test("packagedEnv isolates the XDG dirs and wires every tool path", () => {
     XDG_DATA_HOME: "C:/ud/xdg/data",
     OPENCODE_DISABLE_EXTERNAL_SKILLS: "1",
     OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1",
+    // ~/.opencode is resolved from os.homedir(), so the XDG pair above cannot reach it and
+    // every session loads its skills. A packaged build proved it: InteJer's ten IoT skills
+    // (esp32-dev, stm32-dev, zephyr-rtos...) were discoverable by the paper agent.
+    OPENCODE_DISABLE_HOME_CONFIG: "1",
     PAPERINO_TECTONIC: "C:/app/resources/paperino/bin/tectonic/tectonic.exe",
     PLAYWRIGHT_BROWSERS_PATH: "C:/ud/browsers",
     PAPERINO_PYTHON: "C:/ud/python/python.exe",

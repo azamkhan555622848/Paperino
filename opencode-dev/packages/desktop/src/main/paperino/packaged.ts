@@ -37,7 +37,10 @@ export function ensurePackagedConfig(opts: PackagedPaths): string {
 
   const templatePath = join(target, "opencode.packaged.jsonc")
   const rendered = renderTemplate(readFileSync(templatePath, "utf8"), packagedTokens(opts))
-  writeFileSync(join(target, "opencode.jsonc"), rendered)
+  // Say what the file is. It is rewritten on every launch, so anyone who edits it in place
+  // (or reads it while debugging) should know that before, not after.
+  const banner = "// GENERATED at launch from opencode.packaged.jsonc. Edits here are overwritten.\n"
+  writeFileSync(join(target, "opencode.jsonc"), banner + rendered)
   unlinkSync(templatePath)
   return target
 }
@@ -61,6 +64,10 @@ export function packagedEnv(opts: PackagedPaths & { configDir: string; basePath:
     // An end user's unrelated Claude/agent skills must not be hoovered into the paper agent.
     OPENCODE_DISABLE_EXTERNAL_SKILLS: "1",
     OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1",
+    // ~/.opencode is a config dir for EVERY session and is keyed off os.homedir(), so the XDG
+    // redirect above does not reach it. On a machine that also runs InteJer it holds ten IoT
+    // skills (esp32-dev, stm32-dev, zephyr-rtos...) — observed leaking into a packaged build.
+    OPENCODE_DISABLE_HOME_CONFIG: "1",
     PAPERINO_TECTONIC: fwd(join(opts.resources, "bin", "tectonic", "tectonic.exe")),
     PLAYWRIGHT_BROWSERS_PATH: fwd(join(opts.userData, "browsers")),
     PAPERINO_PYTHON: fwd(join(opts.userData, "python", "python.exe")),

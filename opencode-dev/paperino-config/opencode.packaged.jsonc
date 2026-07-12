@@ -1,10 +1,12 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  // TEMPLATE — not loaded directly. packages/desktop/src/main/paperino/packaged.ts renders
-  // this into {userData}/paperino-config/opencode.jsonc on every boot, substituting:
-  //   {{RESOURCES}} -> <resourcesPath>/paperino   {{USERDATA}} -> the app's userData dir
-  //   {{ELECTRON}}  -> the app's own executable (behaves as node via ELECTRON_RUN_AS_NODE)
-  // The dev opencode.jsonc is never shipped: it is full of this machine's absolute paths.
+  // TEMPLATE — not loaded directly. packages/desktop/src/main/paperino/packaged.ts renders it
+  // into {userData}/paperino-config/opencode.jsonc on every boot, resolving three tokens:
+  // RESOURCES (<resourcesPath>/paperino), USERDATA (the app's userData dir) and ELECTRON (the
+  // app's own executable, which behaves as node under ELECTRON_RUN_AS_NODE). Their braced
+  // spellings are deliberately not written out here — the renderer would substitute them in
+  // this very comment, and the generated file would then describe itself as a template.
+  // The dev opencode.jsonc is never shipped: it is full of one machine's absolute paths.
 
   // GPT-5.6 Terra on the user's ChatGPT subscription, via opencode's built-in codex
   // OAuth plugin. Plan B adds luna/sol/codex and the onboarding wizard that signs in.
