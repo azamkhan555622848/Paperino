@@ -33,7 +33,8 @@ not "ask the model nicely".
 
 1. **Publication style replaces the blog look outright.** One style; no theme system.
    The blog look proved the pipeline and has no place inside a paper.
-2. **Latin Modern only (v1).** Figure text matches the Tectonic-compiled body. Covers
+2. **One Computer-Modern-family style (v1).** Figure text matches the
+   Tectonic-compiled body (realized as the KaTeX dist's CM-derived faces, §1). Covers
    NeurIPS/ICML/ICLR/ACL/IEEE/ACM, where the figure sits inline in the LaTeX page.
    A venue-aware font token (Nature wants Helvetica labels) is deferred until an actual
    Nature-family submission exists.
@@ -44,10 +45,13 @@ not "ask the model nicely".
 
 ## 1 · Design tokens v2 (`src/assets/tokens.css`)
 
-- **Fonts:** bundled Latin Modern woff2 (Roman regular/italic/bold + LM Mono; GUST
-  license, redistributable) via `@font-face`. Served by the existing loopback HTTP
-  server — no CDN, offline-safe. Committed as assets (~800KB total): they are pinned
-  design inputs, not regenerable build output.
+- **Fonts:** the vendored KaTeX dist's `KaTeX_Main` (regular/bold/italic/bold-italic)
+  and `KaTeX_Typewriter` woff2 faces (SIL OFL) via `@font-face` in tokens.css. These
+  are Computer Modern-derived — they match the Tectonic-compiled body *more* literally
+  than Latin Modern, and they keep a single pinned font source (the `katex` npm
+  package) instead of a second supply chain. Served by the existing loopback HTTP
+  server — no CDN, offline-safe. Committed as assets: pinned design inputs, not
+  regenerable build output.
 - **Ink:** near-black text (`#111`), two gray border weights, **two** accents — a
   restrained blue and a warm red, chosen to remain distinguishable in grayscale — and
   one optional light-gray fill. The pastel `--accent-soft` era ends.
@@ -81,7 +85,12 @@ not "ask the model nicely".
 - Review PNG renders at `deviceScaleFactor: 3` so the vision loop sees crisp glyphs;
   the PDF stays vector. Manifest rects stay in CSS px (unchanged coordinate space).
 - Lint rule 3 changes from "≥9px" to "**≥7pt effective**" (9.33px) — now a print
-  guarantee, not an arbitrary screen number.
+  guarantee, not an arbitrary screen number. **KaTeX-internal text is exempt**: LaTeX
+  itself sets scripts at 7/5pt in a 10pt body, so a blanket floor would fail every
+  superscript; formula-internal sizing is KaTeX's business. For the same reason,
+  rule 1 (text-overlap) skips pairs where **both** boxes are inside KaTeX output —
+  KaTeX absolutely positions glyph boxes, and pairwise overlap over them is a
+  false-positive storm. Formula-vs-outside checks remain.
 
 ## 4 · Lint rules 11–13 + manifest extension
 
@@ -94,8 +103,9 @@ not "ask the model nicely".
     `O(...)`) → fail. The structural kill for the monospace-formula disease.
 12. **web-chrome** — computed border-radius > 3px or any box-shadow → fail. (The
     radius threshold also catches pill badges, whose radius is half their height.)
-13. **font-allowlist** — computed font-family not resolving to Latin Modern / KaTeX
-    faces (LM Mono allowed under `.mono`) → fail. Catches silent fallback to Segoe UI.
+13. **font-allowlist** — computed font-family whose first resolved face is not a
+    `KaTeX_*` face → fail (`KaTeX_Typewriter` serves `.mono`). Catches silent
+    fallback to Segoe UI or the system serif.
 
 ## 5 · Templates rewritten in paper idiom
 
