@@ -6,7 +6,13 @@ export type TextBox = {
   color: string
   background: string
   derived: boolean
+  /** Computed font-family — rule 13 fails anything outside the KaTeX_* allowlist. */
+  fontFamily: string
+  /** Inside KaTeX output: exempt from the 7pt floor and from intra-formula overlap. */
+  inKatex: boolean
 }
+/** Elements carrying web chrome — rule 12. */
+export type ElementBox = { selector: string; borderRadius: number; boxShadow: string }
 export type LintInput = {
   source: string
   meta: { archetype: string; caption: string; alt: string; claim: string }
@@ -15,6 +21,7 @@ export type LintInput = {
     viewport: { width: number; height: number }
     texts: TextBox[]
     strokes: { selector: string; width: number }[]
+    elements: ElementBox[]
   }
 }
 export type LintError = { rule: string; selector: string; actual: string; expected: string }
@@ -69,6 +76,10 @@ export function lint(input: LintInput): LintError[] {
   // 1 text-overlap (shrink 1px each side to forgive adjacent glyph boxes)
   for (let i = 0; i < texts.length; i++)
     for (let j = i + 1; j < texts.length; j++) {
+      // KaTeX absolutely positions glyph boxes, so a formula's own spans routinely
+      // intersect. That is its layout engine's business — pairwise overlap inside a
+      // formula would be a false-positive storm. Formula-vs-outside still counts.
+      if (texts[i].inKatex && texts[j].inKatex) continue
       const a = texts[i].rect
       const b = texts[j].rect
       const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) - 2
@@ -94,8 +105,14 @@ export function lint(input: LintInput): LintError[] {
       )
   }
 
-  // 3 min-type-size
-  for (const t of texts) if (t.fontSize < 9) err("min-type-size", t.selector, `${t.fontSize}px`, ">= 9px")
+  // 3 min-type-size: a 7pt floor at the 96dpi print mapping — a print guarantee, not an
+  // arbitrary screen number. KaTeX internals are exempt: LaTeX itself sets scripts at
+  // 7/5pt in a 10pt body, so a blanket floor would fail every superscript.
+  for (const t of texts) {
+    if (t.inKatex) continue
+    const pt = t.fontSize * 0.75
+    if (pt < 7 - 0.01) err("min-type-size", t.selector, `${t.fontSize}px (${pt.toFixed(2)}pt)`, ">= 7pt (9.34px)")
+  }
 
   // 4 contrast
   for (const t of texts) {
@@ -146,6 +163,30 @@ export function lint(input: LintInput): LintError[] {
   for (const key of ["caption", "alt", "claim"] as const)
     if (!input.meta[key] || !String(input.meta[key]).trim())
       err("meta-complete", "meta.yaml", `${key} empty`, `${key} present`)
+
+  // 11 pseudo-math: TeX-ish plain text outside KaTeX output. `sigma_ch^2 lesssim ...`
+  // rendered as literal monospace is the single most damning artifact a figure can
+  // carry into a paper. Symbols belong in .math spans.
+  const PSEUDO_MATH =
+    /\\[a-zA-Z]+|[A-Za-z0-9]\^|[A-Za-z0-9]_[A-Za-z0-9{(]|\b(?:sigma|Sigma|delta|Delta|epsilon|lambda|theta|alpha|gamma|lesssim|gtrsim|infty|sqrt)\b|\bO\([^)]+\)/
+  for (const t of texts)
+    if (!t.inKatex && PSEUDO_MATH.test(t.text))
+      err("pseudo-math", t.selector, t.text.slice(0, 40), "typeset via a .math span (KaTeX)")
+
+  // 12 web-chrome: paper figures have square corners and no shadows. The radius
+  // threshold also catches pill badges, whose radius is half their height.
+  for (const e of input.manifest.elements ?? []) {
+    if (e.borderRadius > 3)
+      err("web-chrome", e.selector, `border-radius ${e.borderRadius}px`, "<= 3px (square corners)")
+    if (e.boxShadow && e.boxShadow !== "none")
+      err("web-chrome", e.selector, `box-shadow ${e.boxShadow.slice(0, 40)}`, "none")
+  }
+
+  // 13 font-allowlist: catches a silent fallback to Segoe UI or the system serif.
+  for (const t of texts) {
+    const first = t.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "")
+    if (!first.startsWith("KaTeX_")) err("font-allowlist", t.selector, first, 'a "KaTeX_*" face from tokens.css')
+  }
 
   return errors
 }

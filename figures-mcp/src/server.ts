@@ -62,7 +62,7 @@ server.registerTool(
   "figure_lint",
   {
     description:
-      "Deterministic quality gate (10 rules: overlap, overflow, type size, contrast, raw colors, stroke floor, palette, number provenance, svg viewBox, meta). Must pass before figure_review. Patch by selector.",
+      "Deterministic quality gate (13 rules: overlap, overflow, 7pt type floor, contrast, raw colors, stroke floor, palette, number provenance, svg viewBox, meta, pseudo-math, web-chrome, font allowlist). Must pass before figure_review. Patch by selector.",
     inputSchema: { workspace: ws, name: figName },
   },
   async (a) => {
