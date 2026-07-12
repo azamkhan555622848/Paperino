@@ -51,6 +51,25 @@ test(
 )
 
 test(
+  "PAPERINO_FIGURES_NODE overrides the worker executable",
+  async () => {
+    // Packaged builds have no node: the app points this at its own electron.exe. A fake
+    // "node" that exits nonzero proves render spawns the override rather than "node".
+    const fake = join(WS, "fake-node.cmd")
+    writeFileSync(fake, "@echo off\r\nexit /b 7\r\n")
+    process.env.PAPERINO_FIGURES_NODE = fake
+    try {
+      await scaffold(WS, { name: "fig-override", archetype: "schematic", claim: "c", caption: "c", width: "narrow" })
+      const result = await render(WS, "fig-override")
+      expect(result.ok).toBe(false) // the fake worker emits no __RESULT__ marker
+    } finally {
+      delete process.env.PAPERINO_FIGURES_NODE
+    }
+  },
+  120_000,
+)
+
+test(
   "a JS error in figure.html returns ok:false with console output",
   async () => {
     await scaffold(WS, { name: "fig-broken", archetype: "schematic", claim: "c", caption: "c", width: "narrow" })

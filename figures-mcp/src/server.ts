@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
@@ -16,7 +17,8 @@ const image = (path: string) => ({
   data: readFileSync(path).toString("base64"),
   mimeType: "image/png",
 })
-const EXEMPLARS = join(import.meta.dir, "assets", "exemplars")
+// import.meta.dir is bun-only (undefined under node) — see scaffold.ts.
+const EXEMPLARS = join(dirname(fileURLToPath(import.meta.url)), "assets", "exemplars")
 
 const ws = z.string().describe("Absolute path to the paper workspace (the project root)")
 const figName = z.string().regex(/^[a-z0-9][a-z0-9-]*$/, "kebab-case")

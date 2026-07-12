@@ -1,9 +1,15 @@
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { stringify } from "yaml"
 
-const ASSETS = join(import.meta.dir, "assets")
-const TEMPLATES = join(import.meta.dir, "templates")
+// import.meta.dir is BUN-ONLY: under node (which is what the packaged bundle runs on via
+// ELECTRON_RUN_AS_NODE) it is undefined, and every asset path silently became undefined.
+// import.meta.url works in both, and in the bundle it points at dist/, where assets and
+// templates are copied to sit beside server.mjs.
+const HERE = dirname(fileURLToPath(import.meta.url))
+const ASSETS = join(HERE, "assets")
+const TEMPLATES = join(HERE, "templates")
 
 export type Archetype = "schematic" | "gallery" | "chart" | "table"
 export type ScaffoldOpts = {

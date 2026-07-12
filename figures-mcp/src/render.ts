@@ -1,14 +1,17 @@
 import { execFile } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { parse } from "yaml"
 
 // 96dpi print mapping: 312px = 3.25in (two-column width), 528px = 5.5in (NeurIPS/ICML
 // text width). page.pdf sizes the PDF page from these px, so \includegraphics at
 // \linewidth lands ~1:1 and a 9pt label is 9pt on the page by construction.
 const VIEWPORTS = { narrow: 312, full: 528 } as const
-const WORKER = join(import.meta.dir, "render-worker.mjs")
+// import.meta.dir is bun-only (undefined under node); import.meta.url works in both, and
+// in the packaged bundle it points at dist/, where render-worker.mjs sits beside server.mjs.
+const WORKER = join(dirname(fileURLToPath(import.meta.url)), "render-worker.mjs")
 
 export type TextBox = {
   selector: string
@@ -40,10 +43,19 @@ const MARKER = "__RESULT__"
 // The browser runs in a node child process; see render-worker.mjs for why.
 function runWorker(jobPath: string): Promise<RenderResult> {
   return new Promise((resolve) => {
+    // Packaged builds have no node on PATH: the app sets PAPERINO_FIGURES_NODE to its own
+    // electron.exe, and ELECTRON_RUN_AS_NODE makes that behave as node. Plain node ignores
+    // the variable, so setting it unconditionally is safe in dev.
+    const workerExe = process.env.PAPERINO_FIGURES_NODE || "node"
     execFile(
-      "node",
+      workerExe,
       [WORKER, jobPath],
-      { windowsHide: true, timeout: 120_000, maxBuffer: 32 * 1024 * 1024 },
+      {
+        windowsHide: true,
+        timeout: 120_000,
+        maxBuffer: 32 * 1024 * 1024,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      },
       (error, stdout, stderr) => {
         const at = stdout.lastIndexOf(MARKER)
         if (at !== -1) {
