@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { ensurePackagedConfig, renderTemplate } from "./packaged"
+import { ensurePackagedConfig, packagedEnv, renderTemplate } from "./packaged"
 
 test("renderTemplate substitutes every token", () => {
   const out = renderTemplate('{"a":"{{RESOURCES}}/bin","b":"{{ELECTRON}}"}', {
@@ -44,4 +44,28 @@ test("ensurePackagedConfig copies, renders, and is machine-owned", () => {
   writeFileSync(join(dir, "stale.txt"), "old")
   ensurePackagedConfig({ resources, userData, electronExe: "C:\\app\\Paperino.exe" })
   expect(existsSync(join(dir, "stale.txt"))).toBe(false)
+})
+
+test("packagedEnv isolates the XDG dirs and wires every tool path", () => {
+  const env = packagedEnv({
+    resources: "C:/app/resources/paperino",
+    userData: "C:/ud",
+    electronExe: "C:/app/Paperino.exe",
+    configDir: "C:/ud/paperino-config",
+    basePath: "C:/Windows/system32",
+  })
+  expect(env).toEqual({
+    OPENCODE_CONFIG_DIR: "C:/ud/paperino-config",
+    // The InteJer firewall: with its own XDG dirs the sidecar never merges the
+    // machine-global ~/.config/opencode (InteJer's hardware servers + skills), and its
+    // auth store is its own rather than the shared ~/.local/share/opencode/auth.json.
+    XDG_CONFIG_HOME: "C:/ud/xdg/config",
+    XDG_DATA_HOME: "C:/ud/xdg/data",
+    OPENCODE_DISABLE_EXTERNAL_SKILLS: "1",
+    OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1",
+    PAPERINO_TECTONIC: "C:/app/resources/paperino/bin/tectonic/tectonic.exe",
+    PLAYWRIGHT_BROWSERS_PATH: "C:/ud/browsers",
+    PAPERINO_PYTHON: "C:/ud/python/python.exe",
+    PATH: `${join("C:/ud", "python")};C:/Windows/system32`,
+  })
 })

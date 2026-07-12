@@ -25,8 +25,17 @@ export const PREVIEW_PATH = `${OUT_DIR}/${PREVIEW_FILE}`
 // stale, which reads exactly like "it edited the LaTeX but never updated the PDF".
 export const OUTPUT_PDF = "main.pdf"
 
-function tectonicBinary() {
-  return process.env.PAPERINO_TECTONIC || "tectonic"
+/**
+ * Where the LaTeX engine lives. In dev, paperino-dev.cmd sets PAPERINO_TECTONIC; in a
+ * packaged build, packagedEnv sets it to the Tectonic shipped in resources. The
+ * packagedResources fallback exists so a caller holding the resources path but no env
+ * still resolves it, instead of silently falling back to a `tectonic` on PATH that an end
+ * user will not have.
+ */
+export function tectonicBinary(packagedResources?: string) {
+  if (process.env.PAPERINO_TECTONIC) return process.env.PAPERINO_TECTONIC
+  if (packagedResources) return `${packagedResources.replaceAll("\\", "/")}/bin/tectonic/tectonic.exe`
+  return "tectonic"
 }
 
 // A main.tex is the whole precondition: if there is one, we can compile it. paperino.yaml is

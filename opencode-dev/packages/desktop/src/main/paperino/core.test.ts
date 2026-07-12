@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { classifyChange, compile, isPaperWorkspace, parseTectonicLog } from "./core"
+import { classifyChange, compile, isPaperWorkspace, parseTectonicLog, tectonicBinary } from "./core"
 
 // core.test.ts lives at Paperino/opencode-dev/packages/desktop/src/main/paperino/
 const PAPERINO_ROOT = join(import.meta.dir, "..", "..", "..", "..", "..", "..")
@@ -131,4 +131,21 @@ describe("compile (integration, needs tectonic + network on first run)", () => {
     },
     180_000,
   )
+})
+
+describe("tectonicBinary", () => {
+  test("env wins, then the packaged fallback, then PATH", () => {
+    const prev = process.env.PAPERINO_TECTONIC
+    process.env.PAPERINO_TECTONIC = "C:/explicit/tectonic.exe"
+    expect(tectonicBinary()).toBe("C:/explicit/tectonic.exe")
+
+    delete process.env.PAPERINO_TECTONIC
+    // A packaged build ships Tectonic in resources; an end user has no `tectonic` on PATH.
+    expect(tectonicBinary("C:\\app\\resources\\paperino")).toBe(
+      "C:/app/resources/paperino/bin/tectonic/tectonic.exe",
+    )
+    expect(tectonicBinary()).toBe("tectonic")
+
+    if (prev !== undefined) process.env.PAPERINO_TECTONIC = prev
+  })
 })

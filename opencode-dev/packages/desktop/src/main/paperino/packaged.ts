@@ -41,3 +41,31 @@ export function ensurePackagedConfig(opts: PackagedPaths): string {
   unlinkSync(templatePath)
   return target
 }
+
+/**
+ * The isolation + tool environment for packaged builds. Assigned into process.env at boot;
+ * the sidecar inherits it (createSidecarEnv in main/server.ts copies process.env) and every
+ * MCP child inherits it from the sidecar.
+ *
+ * The XDG pair is the InteJer firewall. InteJer is built on this same opencode fork and
+ * lives on the same machine: it owns the machine-global ~/.config/opencode (nine hardware
+ * MCP servers, IoT skills) and the shared ~/.local/share/opencode/auth.json. Pointing
+ * XDG_CONFIG_HOME/XDG_DATA_HOME inside Paperino's userData makes all of that structurally
+ * unreachable — no disable-list to maintain, nothing to leak.
+ */
+export function packagedEnv(opts: PackagedPaths & { configDir: string; basePath: string }): Record<string, string> {
+  return {
+    OPENCODE_CONFIG_DIR: fwd(opts.configDir),
+    XDG_CONFIG_HOME: fwd(join(opts.userData, "xdg", "config")),
+    XDG_DATA_HOME: fwd(join(opts.userData, "xdg", "data")),
+    // An end user's unrelated Claude/agent skills must not be hoovered into the paper agent.
+    OPENCODE_DISABLE_EXTERNAL_SKILLS: "1",
+    OPENCODE_DISABLE_CLAUDE_CODE_SKILLS: "1",
+    PAPERINO_TECTONIC: fwd(join(opts.resources, "bin", "tectonic", "tectonic.exe")),
+    PLAYWRIGHT_BROWSERS_PATH: fwd(join(opts.userData, "browsers")),
+    PAPERINO_PYTHON: fwd(join(opts.userData, "python", "python.exe")),
+    // A bare `python` in the agent's shells must resolve to the portable env — the same
+    // contract paperino-dev.cmd gives the office skills in dev.
+    PATH: `${join(opts.userData, "python")};${opts.basePath}`,
+  }
+}
