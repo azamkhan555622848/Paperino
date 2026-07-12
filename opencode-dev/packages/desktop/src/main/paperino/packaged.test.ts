@@ -4,10 +4,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { ensurePackagedConfig, packagedEnv, renderTemplate } from "./packaged"
 
-// Both files declare the app id independently: electron-builder stamps it into the
-// installer, and main/index.ts derives userData from it. When they drifted, a packaged
-// Paperino installed as ai.paperino.desktop but wrote its state to ai.opencode.desktop —
-// the directory an InteJer install owns. Read as text: importing index.ts needs electron.
+// Three files declare the app id independently: electron-builder stamps it into the installer,
+// main/index.ts derives userData from it, and copy-metainfo.ts names the Linux AppStream entry
+// after it. When the first two drifted, a packaged Paperino installed as ai.paperino.desktop but
+// wrote its state into ai.opencode.desktop — the directory an InteJer install owns. copy-metainfo
+// drifted too, shipping OpenCode's id, name and bugtracker inside Paperino's own app.asar, since
+// electron-builder packs resources/**/*. Read as text: importing index.ts needs electron.
 function appIds(file: string): Record<string, string> {
   const source = readFileSync(join(import.meta.dir, file), "utf8")
   const block = source.match(/const APP_IDS[^{]*\{([^}]*)\}/)
@@ -15,13 +17,22 @@ function appIds(file: string): Record<string, string> {
   return Object.fromEntries([...block[1]!.matchAll(/(\w+):\s*"([^"]+)"/g)].map((m) => [m[1]!, m[2]!]))
 }
 
-test("packaged app id matches the installer's, so userData cannot collide with InteJer", () => {
+test("every declaration of the app id agrees, so userData cannot collide with InteJer", () => {
   const main = appIds("../index.ts")
   const builder = appIds("../../../electron-builder.config.ts")
+  const metainfo = appIds("../../../scripts/copy-metainfo.ts")
 
   expect(main).toEqual(builder)
+  expect(main).toEqual(metainfo)
   expect(main.prod).toBe("ai.paperino.desktop")
   for (const id of Object.values(main)) expect(id).toStartWith("ai.paperino.desktop")
+})
+
+// The generator names its output after the app id, so a rename must not strand the previous
+// file in resources/ — electron-builder packs resources/**/*, and both would ship.
+test("copy-metainfo sweeps stale metainfo files before writing", () => {
+  const source = readFileSync(join(import.meta.dir, "../../../scripts/copy-metainfo.ts"), "utf8")
+  expect(source).toMatch(/rmSync\(.*metainfo|\.metainfo\.xml[\s\S]*rmSync/)
 })
 
 test("renderTemplate substitutes every token", () => {
