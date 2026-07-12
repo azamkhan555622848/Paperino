@@ -63,6 +63,13 @@ export type PaperinoAPI = {
   onStatus: (cb: (status: PaperinoStatus) => void) => () => void
   listFiles: (dir: string) => Promise<{ files: string[]; truncated: boolean }>
   readFile: (dir: string, relPath: string) => Promise<PaperinoReadFileResult>
+  /**
+   * The first-run wizard. `pending` is false once the user has finished (or skipped through) it.
+   * `packaged` says whether the runtime-setup step applies at all: in dev, Chromium and Python
+   * come from the repo, so there is nothing to download.
+   */
+  onboardingStatus: () => Promise<{ pending: boolean; packaged: boolean }>
+  onboardingComplete: () => Promise<void>
   /** First-run runtime setup — driven by the onboarding wizard, re-runnable from Settings. */
   setupStatus: () => Promise<Record<PaperinoSetupComponent, { installed: boolean }>>
   setupRun: (component: PaperinoSetupComponent) => Promise<{ ok: true } | { ok: false; error: string }>

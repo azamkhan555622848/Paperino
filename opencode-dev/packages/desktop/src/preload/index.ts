@@ -22,6 +22,8 @@ const api: ElectronAPI = {
     },
     listFiles: (dir) => ipcRenderer.invoke("paperino-list-files", dir),
     readFile: (dir, relPath) => ipcRenderer.invoke("paperino-read-file", dir, relPath),
+    onboardingStatus: () => ipcRenderer.invoke("paperino-onboarding-status"),
+    onboardingComplete: () => ipcRenderer.invoke("paperino-onboarding-complete"),
     setupStatus: () => ipcRenderer.invoke("paperino-setup-status"),
     setupRun: (component) => ipcRenderer.invoke("paperino-setup-run", component),
     onSetupProgress: (cb) => {

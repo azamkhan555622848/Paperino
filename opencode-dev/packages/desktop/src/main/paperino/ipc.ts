@@ -7,8 +7,10 @@ import type { WebContents } from "electron"
 import { OUT_DIR, PREVIEW_FILE, compile, isPaperWorkspace, watchWorkspace } from "./core"
 import type { CompileError } from "./core"
 import { listWorkspaceFiles, readWorkspaceFile } from "./files"
+import { completeOnboarding, onboardingStatus } from "./onboarding"
 import { runSetup, setupStatus } from "./setup"
 import type { SetupComponent, SetupProgress } from "./setup"
+import { getStore } from "../store"
 
 type PaperinoStatus =
   | { state: "empty" }
@@ -94,6 +96,13 @@ export function registerPaperinoIpc() {
   ipcMain.handle("paperino-list-files", (_event, dir: string) => listWorkspaceFiles(dir))
 
   ipcMain.handle("paperino-read-file", (_event, dir: string, relPath: string) => readWorkspaceFile(dir, relPath))
+
+  // The first-run wizard: welcome → runtime setup → sign in with ChatGPT → figure key. The
+  // renderer asks whether to show it; `packaged` tells it whether the runtime-setup step is
+  // even relevant (in dev, Chromium and Python come from the repo).
+  ipcMain.handle("paperino-onboarding-status", () => onboardingStatus(getStore(), app.isPackaged))
+
+  ipcMain.handle("paperino-onboarding-complete", () => completeOnboarding(getStore()))
 
   // First-run runtime setup (Chromium, portable Python). The onboarding wizard drives
   // these; Settings re-runs them after a skip. Progress is broadcast rather than returned
