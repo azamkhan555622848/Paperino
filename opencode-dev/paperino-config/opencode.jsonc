@@ -7,31 +7,12 @@
   // chatgpt.com/backend-api/codex/responses. Usage is quota-shaped (5-hour / weekly
   // windows), not token-shaped.
   "model": "openai/gpt-5.6-terra",
-  // models.dev's catalog stops at gpt-5.2, so Terra has to be declared by hand or it
-  // never reaches the model picker. The codex plugin's OAuth gate admits it on its own —
-  // it keeps any `gpt-<major>.<minor>` above 5.4 (codex.ts:288) — and the reasoning-effort
-  // tiers are derived from the version in the id, so 5.6 gets the full set with no extra
-  // config.
-  "provider": {
-    "openai": {
-      "models": {
-        "gpt-5.6-terra": {
-          "id": "gpt-5.6-terra",
-          "name": "GPT-5.6 Terra",
-          "reasoning": true,
-          "tool_call": true,
-          "attachment": true,
-          // Inherited from the numbers the codex plugin pins for gpt-5.5 (codex.ts:300).
-          // If OpenAI publishes different limits for Terra, correct them here.
-          "limit": {
-            "context": 400000,
-            "input": 272000,
-            "output": 128000
-          }
-        }
-      }
-    }
-  },
+  // Terra was declared by hand here, because models.dev's catalog stopped at gpt-5.2. It no
+  // longer does: models.dev is fetched at RUNTIME (core/models-dev.ts refreshes hourly) and now
+  // carries terra, luna and sol. The declaration was therefore not merely redundant but wrong —
+  // it guessed a 400k context from gpt-5.5's numbers, where Terra's real window is 1.05M.
+  // The codex plugin's OAuth gate admits the whole 5.6 family on its own (any
+  // `gpt-<major>.<minor>` above 5.4) and gpt-5.3-codex via its allowlist.
   // Paperino does not use InteJer's hardware/IoT MCP servers, which come from the
   // shared global config (~/.config/opencode/opencode.jsonc). Disable them here so
   // the paper-writing agent has a clean tool surface — without touching the global file.

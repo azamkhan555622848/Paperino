@@ -8,23 +8,12 @@
   // this very comment, and the generated file would then describe itself as a template.
   // The dev opencode.jsonc is never shipped: it is full of one machine's absolute paths.
 
-  // GPT-5.6 Terra on the user's ChatGPT subscription, via opencode's built-in codex
-  // OAuth plugin. Plan B adds luna/sol/codex and the onboarding wizard that signs in.
+  // The default model. Onboarding signs the user in to their ChatGPT subscription (openai
+  // provider, codex OAuth plugin); Terra, Luna, Sol and gpt-5.3-codex then all appear in the
+  // picker. They are deliberately NOT declared here: models.dev already carries them with their
+  // real metadata, and a hand-written declaration can only invent facts — the one this replaced
+  // claimed a 400k context for Terra, whose real window is 1.05M.
   "model": "openai/gpt-5.6-terra",
-  "provider": {
-    "openai": {
-      "models": {
-        "gpt-5.6-terra": {
-          "id": "gpt-5.6-terra",
-          "name": "GPT-5.6 Terra",
-          "reasoning": true,
-          "tool_call": true,
-          "attachment": true,
-          "limit": { "context": 400000, "input": 272000, "output": 128000 }
-        }
-      }
-    }
-  },
 
   "mcp": {
     // Figure Studio: a node-target bundle on the app's OWN runtime, so users need no bun
