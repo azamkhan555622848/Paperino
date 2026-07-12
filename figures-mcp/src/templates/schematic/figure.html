@@ -4,22 +4,35 @@
   <meta charset="utf-8" />
   <link rel="stylesheet" href="../tokens.css" />
   <style>
-    /* Layout only — colors/type/strokes come from tokens.css */
-    #fig-root { display: flex; gap: 24px; padding: 24px; align-items: flex-start; }
-    .col { display: flex; flex-direction: column; gap: 12px; }
+    /* Layout only — colors/type/strokes come from tokens.css.
+       Paper idiom: NO headline inside the figure (the caption explains, the figure
+       shows); panels are labelled (a), (b) with .panel-label; every symbol goes in a
+       .math span. Rounded corners, shadows and UI fonts are lint failures. */
+    #fig-root { display: flex; gap: 20px; padding: 12px; align-items: flex-start; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
   </style>
 </head>
 <body>
   <div id="fig-root">
     <div class="col">
-      <div class="card" id="box-a"><h3>Stage A</h3><p>Replace me</p></div>
-      <div class="card" id="box-b"><h3>Stage B</h3><p>Replace me</p></div>
+      <span class="panel-label" id="panel-a">(a)</span>
+      <div class="card" id="box-a">
+        <h3>Stage A</h3>
+        <p>Replace me — e.g. residual <span class="math">\Delta_{\mathrm{vec}}</span></p>
+      </div>
+      <div class="card" id="box-b">
+        <h3>Stage B</h3>
+        <p>Replace me</p>
+      </div>
     </div>
   </div>
   <script type="module">
+    import { renderMath } from "../lib/math.js"
     import { arrow, brace, highlight, figReady } from "../lib/annot.js"
-    // Structure in HTML above; annotations here. Never type coordinates.
-    arrow("#box-a", "#box-b", { bow: 0.3 })
+    // Math FIRST (glyph geometry must be final before anything is measured), then
+    // annotations, then figReady. Structure in HTML above; never type coordinates.
+    await renderMath()
+    arrow("#box-a", "#box-b", { bow: 0.25 })
     figReady()
   </script>
 </body>

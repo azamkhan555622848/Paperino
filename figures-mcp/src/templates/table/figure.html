@@ -4,19 +4,24 @@
   <meta charset="utf-8" />
   <link rel="stylesheet" href="../tokens.css" />
   <style>
-    #fig-root { padding: 16px; }
+    /* Booktabs idiom: a heavy rule above and below the table, a hairline under the
+       header, and NO vertical rules. That is what a top-venue results table looks like. */
+    #fig-root { padding: 12px; }
     .fig-table { border-collapse: collapse; width: 100%; font-size: var(--fs-label); }
-    .fig-table th { text-align: left; border-bottom: var(--stroke-thin) solid var(--border-strong); padding: 6px 10px; }
-    .fig-table td { border-bottom: var(--stroke-thin) solid var(--border); padding: 6px 10px; }
+    .fig-table th { text-align: left; border-top: var(--stroke) solid var(--border-strong); border-bottom: var(--stroke-thin) solid var(--border-strong); padding: 4px 8px; }
+    .fig-table td { padding: 4px 8px; }
+    .fig-table tr:last-child td { border-bottom: var(--stroke) solid var(--border-strong); }
   </style>
 </head>
 <body>
   <div id="fig-root"></div>
   <script type="module">
+    import { renderMath } from "../lib/math.js"
     import { renderTable } from "../lib/table.js"
     import { figReady } from "../lib/annot.js"
     // Cells come from data.json via renderTable. Typing a number here is a lint failure.
     renderTable(document.querySelector("#fig-root"), window.__DATA__.rows ?? [], window.__DATA__.columns ?? [])
+    await renderMath()
     figReady()
   </script>
 </body>

@@ -4,25 +4,30 @@
   <meta charset="utf-8" />
   <link rel="stylesheet" href="../tokens.css" />
   <style>
-    #fig-root { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 16px; }
+    /* Two columns at a 5.5in text width keeps card text above the 7pt floor.
+       Colors/type/strokes come from tokens.css. */
+    #fig-root { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; }
   </style>
 </head>
 <body>
   <div id="fig-root"></div>
   <script type="module">
+    import { renderMath } from "../lib/math.js"
     import { figReady } from "../lib/annot.js"
     // Records come from data.json (injected as window.__DATA__). Copying records
-    // into HTML by hand is a lint failure.
+    // into HTML by hand is a lint failure. Body text is prose, not code — .mono is
+    // for real code only, and symbols belong in .math spans.
     const root = document.querySelector("#fig-root")
     for (const [i, item] of (window.__DATA__.items ?? []).entries()) {
       const card = document.createElement("div")
       card.className = "card"
       card.id = `item-${i}`
-      card.innerHTML = `<h3></h3><p class="mono"></p>`
+      card.innerHTML = `<h3></h3><p></p>`
       card.querySelector("h3").textContent = item.title ?? ""
       card.querySelector("p").textContent = item.body ?? ""
       root.appendChild(card)
     }
+    await renderMath()
     figReady()
   </script>
 </body>

@@ -141,6 +141,9 @@ export function lint(input: LintInput): LintError[] {
     const labels = new Set(flattenStrings(input.data))
     for (const t of texts) {
       if (t.derived) continue
+      // Digits inside a formula are notation, not data: the 2 in σ² is an exponent, not
+      // a cell. Provenance governs rendered VALUES.
+      if (t.inKatex) continue
       // a cell copied verbatim from a string in data (e.g. the step label "5C") is sourced
       if (labels.has(t.text)) continue
       const normalized = t.text.replace(/(?<=\d),(?=\d)/g, "") // 14,617 -> 14617

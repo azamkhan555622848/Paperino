@@ -101,6 +101,12 @@ try {
       if (!tn.textContent || !tn.textContent.trim()) continue
       const el = tn.parentElement
       if (!el) continue
+      // KaTeX emits a hidden MathML twin of every formula for screen readers. It is
+      // CLIPPED, not display:none, so it still has client rects — but it is not ink.
+      // Left in, it duplicates every glyph (bogus overlap), carries font-family "math"
+      // (bogus font-allowlist), and its exponents look like untraceable numbers (bogus
+      // provenance). Only .katex-html is rendered.
+      if (el.closest(".katex-mathml")) continue
       const range = document.createRange()
       range.selectNodeContents(tn)
       const cs = getComputedStyle(el)
