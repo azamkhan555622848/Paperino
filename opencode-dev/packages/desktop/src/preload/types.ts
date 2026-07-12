@@ -53,6 +53,9 @@ export type PaperinoReadFileResult =
   | { ok: true; bytes: Uint8Array }
   | { ok: false; error: "invalid-path" | "not-found" | "too-large" }
 
+export type PaperinoSetupComponent = "chromium" | "python"
+export type PaperinoSetupProgress = { component: PaperinoSetupComponent; phase: string; percent?: number }
+
 export type PaperinoAPI = {
   detect: (dir: string) => Promise<boolean>
   watch: (dir: string) => Promise<void>
@@ -60,6 +63,10 @@ export type PaperinoAPI = {
   onStatus: (cb: (status: PaperinoStatus) => void) => () => void
   listFiles: (dir: string) => Promise<{ files: string[]; truncated: boolean }>
   readFile: (dir: string, relPath: string) => Promise<PaperinoReadFileResult>
+  /** First-run runtime setup — driven by the onboarding wizard, re-runnable from Settings. */
+  setupStatus: () => Promise<Record<PaperinoSetupComponent, { installed: boolean }>>
+  setupRun: (component: PaperinoSetupComponent) => Promise<{ ok: true } | { ok: false; error: string }>
+  onSetupProgress: (cb: (progress: PaperinoSetupProgress) => void) => () => void
 }
 
 export type ElectronAPI = {

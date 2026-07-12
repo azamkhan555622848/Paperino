@@ -25,7 +25,11 @@ import os
 import sys
 from pathlib import Path
 
-PAPERBANANA = Path(__file__).resolve().parent.parent / "PaperBanana-main"
+# In a packaged install the PaperBanana source lives in the app's resources, not beside
+# this file, so the app passes PAPERBANANA_ROOT. Dev keeps working with no env at all.
+PAPERBANANA = Path(
+    os.environ.get("PAPERBANANA_ROOT") or (Path(__file__).resolve().parent.parent / "PaperBanana-main")
+)
 sys.path.insert(0, str(PAPERBANANA))
 
 IMAGE_MODEL = os.environ.get("PAPERINO_FIGURE_IMAGE_MODEL", "google/gemini-3.1-flash-image-preview")
@@ -49,7 +53,11 @@ def _openrouter_key() -> str:
     key = os.environ.get("OPENROUTER_API_KEY")
     if key:
         return key
-    auth = Path.home() / ".local" / "share" / "opencode" / "auth.json"
+    # The packaged app isolates its auth store inside its own userData (XDG_DATA_HOME) so
+    # it never shares credentials with InteJer; dev falls back to the standard location.
+    data_home = os.environ.get("XDG_DATA_HOME")
+    base = Path(data_home) if data_home else Path.home() / ".local" / "share"
+    auth = base / "opencode" / "auth.json"
     if auth.exists():
         data = json.loads(auth.read_text(encoding="utf-8"))
         key = (data.get("openrouter") or {}).get("key", "")

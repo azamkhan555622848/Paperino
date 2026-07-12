@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron"
-import type { ElectronAPI, PaperinoStatus, WslServersEvent } from "./types"
+import type { ElectronAPI, PaperinoSetupProgress, PaperinoStatus, WslServersEvent } from "./types"
 import type { UpdaterState } from "@opencode-ai/app/updater"
 
 const updaterCallbacks = new Set<(state: UpdaterState) => void>()
@@ -22,6 +22,13 @@ const api: ElectronAPI = {
     },
     listFiles: (dir) => ipcRenderer.invoke("paperino-list-files", dir),
     readFile: (dir, relPath) => ipcRenderer.invoke("paperino-read-file", dir, relPath),
+    setupStatus: () => ipcRenderer.invoke("paperino-setup-status"),
+    setupRun: (component) => ipcRenderer.invoke("paperino-setup-run", component),
+    onSetupProgress: (cb) => {
+      const handler = (_: unknown, progress: PaperinoSetupProgress) => cb(progress)
+      ipcRenderer.on("paperino-setup-progress", handler)
+      return () => ipcRenderer.removeListener("paperino-setup-progress", handler)
+    },
   },
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
   installCli: () => ipcRenderer.invoke("install-cli"),

@@ -2,11 +2,13 @@ import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import type { FSWatcher } from "node:fs"
 import { join } from "node:path"
-import { ipcMain } from "electron"
+import { BrowserWindow, app, ipcMain } from "electron"
 import type { WebContents } from "electron"
 import { OUT_DIR, PREVIEW_FILE, compile, isPaperWorkspace, watchWorkspace } from "./core"
 import type { CompileError } from "./core"
 import { listWorkspaceFiles, readWorkspaceFile } from "./files"
+import { runSetup, setupStatus } from "./setup"
+import type { SetupComponent, SetupProgress } from "./setup"
 
 type PaperinoStatus =
   | { state: "empty" }
@@ -92,4 +94,30 @@ export function registerPaperinoIpc() {
   ipcMain.handle("paperino-list-files", (_event, dir: string) => listWorkspaceFiles(dir))
 
   ipcMain.handle("paperino-read-file", (_event, dir: string, relPath: string) => readWorkspaceFile(dir, relPath))
+
+  // First-run runtime setup (Chromium, portable Python). The onboarding wizard drives
+  // these; Settings re-runs them after a skip. Progress is broadcast rather than returned
+  // so a long install can paint a bar instead of freezing on one await.
+  ipcMain.handle("paperino-setup-status", () => setupStatus(app.getPath("userData")))
+
+  ipcMain.handle("paperino-setup-run", async (_event, component: SetupComponent) => {
+    try {
+      await runSetup(
+        component,
+        {
+          userData: app.getPath("userData"),
+          resources: join(process.resourcesPath, "paperino"),
+          electronExe: process.execPath,
+        },
+        (progress: SetupProgress) => {
+          for (const win of BrowserWindow.getAllWindows()) win.webContents.send("paperino-setup-progress", progress)
+        },
+      )
+      return { ok: true as const }
+    } catch (error) {
+      // A failed download must surface as a message the wizard can show, never as an
+      // unhandled rejection that leaves the step spinning forever.
+      return { ok: false as const, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
 }
