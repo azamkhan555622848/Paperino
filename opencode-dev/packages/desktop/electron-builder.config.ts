@@ -59,6 +59,13 @@ const getBase = (appId: string): Configuration => ({
       to: "native/",
       filter: ["index.js", "index.d.ts", "build/Release/mac_window.node", "swift-build/**"],
     },
+    // Paperino's payload — config template, tectonic, jq, figures-mcp bundle, PaperBanana.
+    // Staged by scripts/stage-paperino.ts during prebuild; lands at <resources>/paperino,
+    // which is exactly what the config template's {{RESOURCES}} token resolves to.
+    {
+      from: "resources-paperino/",
+      to: "paperino/",
+    },
   ],
   mac: {
     category: "public.app-category.developer-tools",

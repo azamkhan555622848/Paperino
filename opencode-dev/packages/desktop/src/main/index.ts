@@ -16,6 +16,7 @@ import { checkAppExists, resolveAppPath } from "./apps"
 import { CHANNEL } from "./constants"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { registerPaperinoIpc } from "./paperino/ipc"
+import { ensurePackagedConfig, packagedEnv } from "./paperino/packaged"
 import { forwardInitializationFailure } from "./initialization"
 import { exportDebugLogs, initCrashReporter, initLogging, startNetLog, write as writeLog } from "./logging"
 import { parseMarkdown } from "./markdown"
@@ -49,10 +50,13 @@ const APP_NAMES: Record<string, string> = {
   beta: "Paperino Beta",
   prod: "Paperino",
 }
+// Must match electron-builder.config.ts: userData is keyed off this id, so a mismatch
+// would install as ai.paperino.desktop while writing state to ai.opencode.desktop — the
+// very directory an InteJer install uses. Isolation from InteJer starts here.
 const APP_IDS: Record<string, string> = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "ai.paperino.desktop.dev",
+  beta: "ai.paperino.desktop.beta",
+  prod: "ai.paperino.desktop",
 }
 const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
@@ -115,6 +119,9 @@ const main = Effect.gen(function* () {
 
   process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
 
+  // Unpackaged runs deliberately keep the old id: paperino-dev.cmd's store (projects,
+  // sessions, model choice) lives under it, and renaming it would silently reset dev.
+  // Packaged builds get Paperino's own id, which is what isolates them from InteJer.
   const appId = app.isPackaged ? APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
   const onboardingTestRoot = ((): string | undefined => {
     if (!TEST_ONBOARDING) return
@@ -139,6 +146,31 @@ const main = Effect.gen(function* () {
     onboardingTestRoot ? join(onboardingTestRoot, "desktop") : join(app.getPath("appData"), appId),
   )
   if (onboardingTestRoot) app.setPath("sessionData", join(onboardingTestRoot, "session"))
+
+  // Packaged Paperino is self-describing. Render the config template into userData and
+  // inject the isolated environment BEFORE anything spawns: createSidecarEnv() copies
+  // process.env, so the sidecar — and every MCP child it starts — inherits all of it.
+  //
+  // This is also the InteJer firewall. InteJer is built on this same fork and lives on the
+  // same machines: without its own XDG dirs, Paperino would merge InteJer's global config
+  // (nine hardware MCP servers) and share its auth store. Dev is untouched — paperino-dev.cmd
+  // owns that environment.
+  if (app.isPackaged) {
+    const resources = join(process.resourcesPath, "paperino")
+    const userData = app.getPath("userData")
+    const configDir = ensurePackagedConfig({ resources, userData, electronExe: process.execPath })
+    Object.assign(
+      process.env,
+      packagedEnv({
+        resources,
+        userData,
+        electronExe: process.execPath,
+        configDir,
+        basePath: process.env.PATH ?? "",
+      }),
+    )
+  }
+
   logger = initLogging()
   initCrashReporter()
 
