@@ -1,6 +1,7 @@
 import { beforeAll, expect, test } from "bun:test"
 import { execFileSync, execSync, spawn } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
+import { homedir } from "node:os"
 import { join } from "node:path"
 
 // The packaged app has no bun and no node: figures-mcp ships as a node-target bundle run
@@ -24,6 +25,24 @@ test("dist layout is complete", () => {
     "node_modules/playwright-core/package.json",
   ])
     expect(existsSync(join(DIST, p))).toBe(true)
+})
+
+test("dist bakes in no path from the machine that built it", () => {
+  // A hardcoded fallback like C:\Users\<me>\...\jq.exe survives bundling and ships to every
+  // user, where it silently does not exist. Binary paths must come from the environment the
+  // app sets, or be resolved relative to the module.
+  //
+  // The bundle stores such a path as JS SOURCE, so its separators are escaped: searching for
+  // homedir() ("C:\Users\me") against the raw text misses "C:\\Users\\me" and the test passes
+  // while the bug ships. Unescape first, and check the forward-slash spelling too.
+  const bundle = readFileSync(join(DIST, "server.mjs"), "utf8")
+  const unescaped = bundle.split("\\\\").join("\\")
+  const forward = (p: string) => p.split("\\").join("/")
+
+  for (const machinePath of [homedir(), ROOT]) {
+    expect(unescaped).not.toInclude(machinePath)
+    expect(bundle).not.toInclude(forward(machinePath))
+  }
 })
 
 test(
