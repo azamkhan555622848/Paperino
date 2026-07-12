@@ -27,8 +27,17 @@ type OnboardingBridge = {
 const bridge = (): OnboardingBridge | undefined => (window as { api?: { paperino?: OnboardingBridge } }).api?.paperino
 
 /**
+ * Once per app run. The wizard has to be mounted inside a ServerSync/ServerSDK subtree — the
+ * dialog it shows resolves those through its owner — and there is no single such ancestor: the
+ * providers live per route (SelectedServerProviders for home/sessions, ResolvedDraftRoute for
+ * /new-session). So it is mounted in both, and this flag keeps the second mount from re-showing
+ * the wizard (or restarting it at step 1 on a route change).
+ */
+let shown = false
+
+/**
  * Paperino's first run. Self-gating: it asks the main process whether the wizard is still pending
- * and renders nothing otherwise, so it is safe to mount unconditionally.
+ * and renders nothing otherwise, so it is safe to mount in more than one place.
  */
 export function PaperinoOnboarding() {
   const dialog = useDialog()
@@ -36,9 +45,10 @@ export function PaperinoOnboarding() {
   onMount(() => {
     void (async () => {
       const api = bridge()
-      if (!api) return // no desktop bridge (browser/dev server): no first run to walk
+      if (!api || shown) return // no desktop bridge (browser/dev server): no first run to walk
       const status = await api.onboardingStatus().catch(() => undefined)
       if (!status?.pending) return
+      shown = true
       dialog.show(() => <Wizard packaged={status.packaged} />)
     })()
   })

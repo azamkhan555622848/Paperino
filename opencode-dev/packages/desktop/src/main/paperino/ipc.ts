@@ -40,6 +40,14 @@ export function registerPaperinoIpc() {
       if (!sender.isDestroyed()) sender.send("paperino-status", status)
     }
 
+    // A project can outlive its folder — the store keeps the entry after the directory is moved or
+    // deleted. fs.watch would throw ENOENT here, and the renderer only ever gets an unhandled
+    // rejection out of it. An empty panel is the right answer, not a crash.
+    if (!existsSync(dir)) {
+      send({ state: "empty" })
+      return
+    }
+
     // A PDF the agent placed at .paperino/preview.pdf is shown as-is, no compile.
     const showPreview = async () => {
       const path = join(dir, OUT_DIR, PREVIEW_FILE)

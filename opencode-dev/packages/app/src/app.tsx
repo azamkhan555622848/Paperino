@@ -160,7 +160,14 @@ function SelectedServerProviders(props: ParentProps) {
   return (
     <ServerKey>
       <ServerSDKProvider>
-        <ServerSyncProvider>{props.children}</ServerSyncProvider>
+        <ServerSyncProvider>
+          {/* The first-run wizard must sit INSIDE ServerSync/ServerSDK: the dialog it shows (and the
+              provider-connect dialog it pushes) resolve those contexts through its owner. Mounted
+              here and in ResolvedDraftRoute — the two subtrees that provide them — because no single
+              ancestor does. It shows at most once per run. */}
+          <PaperinoOnboarding />
+          {props.children}
+        </ServerSyncProvider>
       </ServerSDKProvider>
     </ServerKey>
   )
@@ -208,6 +215,9 @@ function ResolvedDraftRoute(props: { draft: DraftTab }) {
     <Show when={`${props.draft.server}\0${props.draft.directory}`} keyed>
       <ServerSDKProvider server={conn}>
         <ServerSyncProvider server={conn}>
+          {/* The other subtree that provides ServerSync — a first launch can land here (a draft),
+              not only on home. See the note in SelectedServerProviders. */}
+          <PaperinoOnboarding />
           <DraftServerScopedProviders directory={directory}>
             <SDKProvider directory={directory}>
               <DirectoryDataProvider directory={directory} server={serverKey}>
@@ -540,11 +550,6 @@ export function AppInterface(props: {
   const ServerShell = (shellProps: ParentProps) => (
     <QueryProvider>
       <SharedProviders>
-        {/* The first-run wizard belongs on the router root, not on a page: a first launch lands on
-            the home screen, so a wizard mounted inside new-session.tsx would never open. It renders
-            null once completed, and it must sit inside the server providers — the dialog it shows
-            resolves useServerSDK/useProviders through this owner. */}
-        <PaperinoOnboarding />
         {props.children}
         {shellProps.children}
       </SharedProviders>
