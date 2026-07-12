@@ -37,6 +37,12 @@ test(
       if (!result.ok) continue
       const manifest = JSON.parse(readFileSync(result.bboxes, "utf8"))
       expect(manifest.texts.length).toBeGreaterThan(0)
+      // v2 manifest: lint 11-13 need the computed font, KaTeX membership, and web chrome
+      expect(typeof manifest.texts[0].fontFamily).toBe("string")
+      expect(typeof manifest.texts[0].inKatex).toBe("boolean")
+      expect(Array.isArray(manifest.elements)).toBe(true)
+      // print-true: `narrow` is a 3.25in column at 96dpi
+      expect(manifest.viewport.width).toBe(312)
       expect(readFileSync(result.pdf).subarray(0, 5).toString()).toBe("%PDF-")
       expect(existsSync(result.png)).toBe(true)
     }

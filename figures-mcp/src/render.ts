@@ -4,7 +4,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parse } from "yaml"
 
-const VIEWPORTS = { narrow: 550, full: 1100 } as const
+// 96dpi print mapping: 312px = 3.25in (two-column width), 528px = 5.5in (NeurIPS/ICML
+// text width). page.pdf sizes the PDF page from these px, so \includegraphics at
+// \linewidth lands ~1:1 and a 9pt label is 9pt on the page by construction.
+const VIEWPORTS = { narrow: 312, full: 528 } as const
 const WORKER = join(import.meta.dir, "render-worker.mjs")
 
 export type TextBox = {
@@ -15,11 +18,18 @@ export type TextBox = {
   color: string
   background: string
   derived: boolean
+  /** Computed font-family — lint rule 13 fails a face outside the KaTeX_* allowlist. */
+  fontFamily: string
+  /** Inside KaTeX output: exempt from the 7pt floor and from intra-formula overlap. */
+  inKatex: boolean
 }
+/** Elements carrying web chrome (radius/shadow) — lint rule 12. */
+export type ElementBox = { selector: string; borderRadius: number; boxShadow: string }
 export type Manifest = {
   viewport: { width: number; height: number }
   texts: TextBox[]
   strokes: { selector: string; width: number }[]
+  elements: ElementBox[]
 }
 export type RenderResult =
   | { ok: true; png: string; pdf: string; svg: string | null; bboxes: string; consoleOutput: string[] }

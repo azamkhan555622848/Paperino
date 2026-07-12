@@ -48,7 +48,9 @@ const origin = `http://127.0.0.1:${server.address().port}`
 
 const browser = await chromium.launch({ headless: true, args: ["--font-render-hinting=none"] })
 try {
-  const page = await browser.newPage({ viewport: { width, height: 800 } })
+  // DSF only affects raster output (the review PNG the model looks at); the PDF and all
+  // bbox geometry stay in CSS px, so print-true sizing is unaffected.
+  const page = await browser.newPage({ viewport: { width, height: 800 }, deviceScaleFactor: 3 })
   page.on("console", (msg) => consoleOutput.push(`[${msg.type()}] ${msg.text()}`))
   page.on("pageerror", (err) => consoleOutput.push(`[pageerror] ${err.message}`))
   await page.addInitScript(`window.__DATA__ = ${data}`)
@@ -114,6 +116,8 @@ try {
           color: cs.color,
           background: effectiveBackground(el),
           derived: el.closest("[data-derived]") !== null,
+          fontFamily: cs.fontFamily,
+          inKatex: el.closest(".katex") !== null,
         })
       }
     }
@@ -123,13 +127,29 @@ try {
       if (!Number.isFinite(w) || cs.stroke === "none") return []
       return [{ selector: cssPath(el), width: w }]
     })
+    // Web-chrome audit: record every element carrying a border radius or a shadow.
+    // Paper figures have square corners and no shadows (lint rule 12).
+    const elements = []
+    for (const el of document.querySelectorAll("body *")) {
+      const cs2 = getComputedStyle(el)
+      const radius = Math.max(
+        ...[cs2.borderTopLeftRadius, cs2.borderTopRightRadius, cs2.borderBottomLeftRadius, cs2.borderBottomRightRadius]
+          .map((v) => parseFloat(v))
+          .map((v) => (Number.isFinite(v) ? v : 0)),
+      )
+      const shadow = cs2.boxShadow
+      const rr = el.getBoundingClientRect()
+      if ((radius > 0 || (shadow && shadow !== "none")) && rr.width > 0 && rr.height > 0)
+        elements.push({ selector: cssPath(el), borderRadius: radius, boxShadow: shadow })
+    }
+
     // The overlay is stretched to the initial viewport, so scrollHeight would pin the
     // page at 800px and pad the figure with dead space. Measure the real content.
     const content = Array.from(document.body.children)
       .filter((el) => el.id !== "annot-overlay")
       .reduce((max, el) => Math.max(max, el.getBoundingClientRect().bottom), 0)
     const height = Math.ceil(Math.max(content, 100))
-    return { viewport: { width: window.innerWidth, height }, texts, strokes }
+    return { viewport: { width: window.innerWidth, height }, texts, strokes, elements }
   })
 
   const contentHeight = Math.max(manifest.viewport.height, 100)
