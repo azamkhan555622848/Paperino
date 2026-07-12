@@ -210,6 +210,64 @@ duplicated in `packages/ui/src/components/logo.tsx` (themed with the app's ink t
   `WM_GETICON` — if those are the sheet, only `ie4uinit.exe -show`, an Explorer restart, or a
   sign-out will refresh the button.
 
+## Packaging (the installable build)
+
+`OPENCODE_CHANNEL=prod bun run prebuild && bun run build && bun run package:win` in
+`packages/desktop` produces `dist/paperino-win-x64.exe` (~164 MB, NSIS one-click, auto-update
+from GitHub Releases at `azamkhan555622848/Paperino`). `prebuild` runs
+`scripts/stage-paperino.ts`, which assembles `resources-paperino/` — config template, tectonic,
+jq, the node-target figures-mcp bundle, PaperBanana — and electron-builder ships it as
+`<resources>/paperino`. That directory is **build output**: it is wiped on every prebuild.
+
+Chromium and a portable CPython are *not* bundled; first-run setup downloads them into
+userData (`src/main/paperino/setup.ts`). That is what keeps the installer ~150 MB.
+
+- **The packaged app has no bun and no node.** figures-mcp runs on the app's own
+  `electron.exe` via `ELECTRON_RUN_AS_NODE`, and so does its render worker
+  (`PAPERINO_FIGURES_NODE`). Anything shipped must run on that runtime.
+- **No install-time path may be baked into an artifact.** `opencode.packaged.jsonc` is a token
+  template (`{{RESOURCES}}`, `{{USERDATA}}`, `{{ELECTRON}}`) rendered into userData on *every*
+  boot. A hardcoded fallback is the failure mode to watch: figures-mcp shipped
+  `C:\Users\<me>\...\jq.exe` as its jq default, which exists on exactly one machine. `dist.test.ts`
+  now greps the bundle for it — **unescape the text first**, since the path is stored as JS
+  source (`C:\\Users\\...`) and a naive `includes(homedir())` passes against a bundle that
+  provably contains the bug.
+- **The template's own comment gets substituted too.** Don't spell `{{TOKEN}}` in the header, or
+  the generated file ends up describing itself as a template.
+
+### Isolation from InteJer — the part that keeps biting
+
+InteJer is built on this same fork and lives on the same machines. Three separate channels leak
+its world into Paperino, and only the first is obvious:
+
+1. **The machine-global `~/.config/opencode`** (InteJer's nine hardware MCP servers). Closed by
+   pointing `XDG_CONFIG_HOME`/`XDG_DATA_HOME` inside userData. This is the only leak XDG closes.
+2. **`~/.opencode`** — a config dir for *every* session, keyed off `os.homedir()`, so XDG cannot
+   move it; skills are scanned from every config dir. On this machine it holds InteJer's ten IoT
+   skills, and `debug skill` listed all of them for the paper agent. Closed by
+   `OPENCODE_DISABLE_HOME_CONFIG` (added to core's `Flag`). It must filter the *assembled*
+   directory list, not just the home lookup — the desktop bootstraps an instance whose directory
+   IS the home dir, so the ordinary project up-walk finds `~/.opencode` anyway.
+3. **`migrate()`'s Tauri import**, which copies every `.dat` out of `%APPDATA%/ai.opencode.desktop`.
+   That is InteJer's directory; a clean Paperino install came up holding InteJer's project list.
+   Packaged builds skip it — Paperino has no Tauri predecessor.
+
+**`main/index.ts` has its own `APP_IDS`, separate from electron-builder's, and userData is keyed
+off that one.** They drifted, so a packaged Paperino would have installed as `ai.paperino.desktop`
+while writing state into InteJer's `ai.opencode.desktop`. A test now pins the two tables equal.
+Unpackaged dev deliberately keeps the old id so `paperino-dev.cmd`'s store is not orphaned.
+
+Verify isolation by *running the packaged app*, never by the tests — every one of these leaks
+passed the suite. The checks: the sidecar log's `loading path=` lines must all sit inside userData;
+`debug skill` (with the packaged env) must list only `docx`, `pdf`, `xlsx` and built-ins; and the
+rendered config must contain no `{{` and no dev path.
+
+- **electron-builder cannot rewrite `win-unpacked` while the packaged app is running** — it fails
+  with `EBUSY: unlink app.asar` and leaves the directory with no exe. Close the app *before*
+  packaging. If the lock outlives the process (a scanner holds the fresh 164 MB asar, and neither
+  delete nor rename works), package to another output dir with
+  `-c.directories.output=dist2` rather than hunting the handle.
+
 ## Product rules that must not regress
 
 1. Agents never invent results, numbers, datasets or outcomes. Missing material is
