@@ -99,8 +99,12 @@ server.registerTool(
       `CLAIM this figure must demonstrate: "${meta.claim}"`,
       `Caption: "${meta.caption}"`,
       "",
-      "Review the FIRST image (the render). The other two images are exemplars of the target quality bar.",
+      "Review the FIRST image (the render). The other two images are exemplars of the bar:",
+      "publication figures that sit natively inside a LaTeX paper.",
       'Answer as JSON: {"demonstrates_claim": bool, "issues": [{"severity", "selector", "problem", "fix"}], "readable_at_50pct": bool}',
+      "- Would a reviewer notice this was NOT made with TikZ/pgfplots? A web-app look (rounded cards, pill badges, UI fonts, drop shadows) = reject.",
+      "- Any pseudo-math (sigma_ch, x^2 as plain text)? Every symbol must be typeset in a .math span.",
+      "- Minimal in-figure prose: the caption explains, the figure shows. No headline inside the figure; panels are (a), (b).",
       "- Is the element the caption is about the most salient thing?",
       "- Is anything encoded twice (color + position for the same variable)?",
       "- Would it survive at 50% scale? In grayscale?",
@@ -110,7 +114,7 @@ server.registerTool(
       content: [
         image(join(dir, "build", `${a.name}.png`)),
         image(join(EXEMPLARS, "exemplar-schematic.png")),
-        image(join(EXEMPLARS, "exemplar-gallery.png")),
+        image(join(EXEMPLARS, "exemplar-chart.png")),
         { type: "text" as const, text: rubric },
       ],
     }
