@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "bun:test"
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { parse } from "yaml"
 import { scaffold } from "../src/scaffold"
@@ -49,4 +49,28 @@ test("scaffold refuses to overwrite an existing figure", async () => {
 test("scaffold appends build ignore to workspace .gitignore", async () => {
   await scaffold(WS, { name: "fig01-demo", archetype: "table", claim: "c", caption: "c", width: "full" })
   expect(readFileSync(join(WS, ".gitignore"), "utf8")).toContain("figures/*/build/")
+})
+
+test("scaffold refreshes vendored tokens.css + lib when the version marker differs", async () => {
+  // A workspace stranded on the v1 design system: stale tokens, stale lib.
+  mkdirSync(join(WS, "figures", "lib"), { recursive: true })
+  writeFileSync(join(WS, "figures", "tokens.css"), "/* paperino-tokens v1 */\n:root { --bg: #fff; }\n")
+  writeFileSync(join(WS, "figures", "lib", "stale.js"), "// stale")
+
+  await scaffold(WS, { name: "fig-refresh", archetype: "schematic", claim: "c", caption: "cap", width: "full" })
+
+  // tokens.css and lib/ are machine-owned: the upgrade is deliberate, not drift.
+  expect(readFileSync(join(WS, "figures", "tokens.css"), "utf8").split("\n")[0]).toBe("/* paperino-tokens v2 */")
+  expect(existsSync(join(WS, "figures", "lib", "math.js"))).toBe(true)
+  expect(existsSync(join(WS, "figures", "lib", "katex", "katex.mjs"))).toBe(true)
+  expect(existsSync(join(WS, "figures", "lib", "stale.js"))).toBe(false)
+})
+
+test("scaffold leaves a current tokens.css alone", async () => {
+  await scaffold(WS, { name: "fig-a", archetype: "schematic", claim: "c", caption: "cap", width: "full" })
+  const tokens = join(WS, "figures", "tokens.css")
+  writeFileSync(tokens, readFileSync(tokens, "utf8") + "\n/* local tweak */\n")
+  await scaffold(WS, { name: "fig-b", archetype: "schematic", claim: "c", caption: "cap", width: "full" })
+  // same version -> not clobbered
+  expect(readFileSync(tokens, "utf8")).toContain("/* local tweak */")
 })

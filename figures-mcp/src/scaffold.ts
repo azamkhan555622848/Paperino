@@ -1,4 +1,4 @@
-import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { stringify } from "yaml"
 
@@ -23,10 +23,24 @@ export async function scaffold(workspace: string, opts: ScaffoldOpts): Promise<{
   const figureDir = join(figuresDir, opts.name)
   if (existsSync(figureDir)) throw new ScaffoldError(`figure "${opts.name}" already exists at ${figureDir}`)
 
-  // Vendor the design system once per workspace — papers stay self-contained.
+  // Vendor the design system per workspace — papers stay self-contained.
+  //
+  // tokens.css and lib/ are MACHINE-OWNED, like references.bib: vendored on the first
+  // scaffold and refreshed whenever the version marker on line 1 differs from the
+  // server's. Vendoring only-if-absent would strand every existing workspace on the
+  // design system it was born with, so an upgrade would silently never arrive.
   mkdirSync(figuresDir, { recursive: true })
-  if (!existsSync(join(figuresDir, "tokens.css"))) cpSync(join(ASSETS, "tokens.css"), join(figuresDir, "tokens.css"))
-  if (!existsSync(join(figuresDir, "lib"))) cpSync(join(ASSETS, "lib"), join(figuresDir, "lib"), { recursive: true })
+  const versionOf = (css: string) => css.split("\n", 1)[0].trim()
+  const shipped = versionOf(readFileSync(join(ASSETS, "tokens.css"), "utf8"))
+  const vendoredTokens = join(figuresDir, "tokens.css")
+  const vendored = existsSync(vendoredTokens) ? versionOf(readFileSync(vendoredTokens, "utf8")) : null
+  if (vendored !== shipped) {
+    cpSync(join(ASSETS, "tokens.css"), vendoredTokens)
+    rmSync(join(figuresDir, "lib"), { recursive: true, force: true })
+    cpSync(join(ASSETS, "lib"), join(figuresDir, "lib"), { recursive: true })
+  } else if (!existsSync(join(figuresDir, "lib"))) {
+    cpSync(join(ASSETS, "lib"), join(figuresDir, "lib"), { recursive: true })
+  }
 
   mkdirSync(figureDir)
   cpSync(join(TEMPLATES, opts.archetype, "figure.html"), join(figureDir, "figure.html"))
