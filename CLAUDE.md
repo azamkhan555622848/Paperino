@@ -85,9 +85,17 @@ is no URL to navigate — seed a project with `window.api.storeSet(...)` plus th
   what made the panel show a fresh paper while the `main.pdf` in the folder stayed months
   stale. The copy is best-effort — a PDF viewer holding the file open locks it on Windows,
   and a failed copy must not fail the compile.
-  **`classifyChange` must therefore ignore a root-level `main.pdf`.** `SOURCE_RE` matches
-  `.pdf` on purpose (Figure Studio emits figures as PDFs), so without that rule the copy
-  reads as a source edit and the compile retriggers itself forever.
+  **`classifyChange` must therefore ignore the emitted PDF.** `SOURCE_RE` matches `.pdf` on
+  purpose (Figure Studio emits figures as PDFs), so without that rule the copy reads as a
+  source edit and the compile retriggers itself forever.
+- **The root document is resolved, not hardcoded** (`resolveRoot`): `root:` in `paperino.yaml`
+  wins, else a top-level `main.tex`, else the *single* top-level `.tex` with a
+  `\documentclass` — two candidates is an ambiguity and the panel picks neither. A named root
+  wins **even when the file is missing**, so a typo surfaces as a compile error instead of
+  quietly previewing a different manuscript. Everything downstream follows the root's name:
+  Tectonic writes `<root>.pdf` into `.paperino/`, the copy beside the source is `<root>.pdf`,
+  and `classifyChange` ignores *that* file, not `main.pdf`. The panel needs none of this — it
+  is handed PDF bytes over IPC, never a path.
 
 ## figures-mcp
 

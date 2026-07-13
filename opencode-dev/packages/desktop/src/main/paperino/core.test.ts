@@ -2,7 +2,15 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { classifyChange, compile, isPaperWorkspace, parseTectonicLog, tectonicBinary } from "./core"
+import {
+  classifyChange,
+  compile,
+  emittedPdf,
+  isPaperWorkspace,
+  parseTectonicLog,
+  resolveRoot,
+  tectonicBinary,
+} from "./core"
 
 // core.test.ts lives at Paperino/opencode-dev/packages/desktop/src/main/paperino/
 const PAPERINO_ROOT = join(import.meta.dir, "..", "..", "..", "..", "..", "..")
@@ -74,6 +82,15 @@ describe("classifyChange", () => {
     expect(classifyChange(".\\main.pdf")).toBe(null)
   })
 
+  // The output PDF is named after the root, so the self-retrigger guard must follow it.
+  // Hardcoding main.pdf would loop forever on a workspace rooted at paper.tex.
+  test("the ignored PDF follows the root", () => {
+    const output = () => "paper.pdf"
+    expect(classifyChange("paper.pdf", output)).toBe(null)
+    // main.pdf is no longer this workspace's output — it is just another PDF, i.e. a source.
+    expect(classifyChange("main.pdf", output)).toBe("source")
+  })
+
   test("figure PDFs are still sources", () => {
     expect(classifyChange("figures/method.pdf")).toBe("source")
     expect(classifyChange("figures/fig-jspace/build/fig-jspace.pdf")).toBe("source")
@@ -103,6 +120,72 @@ describe("isPaperWorkspace", () => {
   })
 })
 
+describe("resolveRoot", () => {
+  const DOC = "\\documentclass{article}\\begin{document}x\\end{document}"
+  const scratch = () => mkdtempSync(join(tmpdir(), "paperino-root-"))
+
+  test("main.tex is the root, and its PDF is main.pdf", () => {
+    const dir = scratch()
+    writeFileSync(join(dir, "main.tex"), DOC)
+    expect(resolveRoot(dir)).toBe("main.tex")
+    expect(emittedPdf(dir)).toBe("main.pdf")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // The case that motivated this: a project holding BOTH a main.tex and the IEEE submission
+  // it was reformatted into. Auto-detection cannot know which one the author cares about, so
+  // the panel kept compiling main.tex and the IEEE version was never previewable.
+  test("paperino.yaml's root: beats main.tex", () => {
+    const dir = scratch()
+    writeFileSync(join(dir, "main.tex"), DOC)
+    writeFileSync(join(dir, "main-tai-author.tex"), DOC)
+    writeFileSync(join(dir, "paperino.yaml"), "title: t\nvenue: ieee\nroot: main-tai-author.tex\n")
+    expect(resolveRoot(dir)).toBe("main-tai-author.tex")
+    expect(emittedPdf(dir)).toBe("main-tai-author.pdf")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // Silently compiling main.tex instead would hand the user a preview of a paper they did not
+  // ask for and no hint as to why. A missing file is a compile error, and compile errors show.
+  test("a root: naming a missing file is surfaced, not quietly replaced by main.tex", () => {
+    const dir = scratch()
+    writeFileSync(join(dir, "main.tex"), DOC)
+    writeFileSync(join(dir, "paperino.yaml"), "root: typo.tex\n")
+    expect(resolveRoot(dir)).toBe("typo.tex")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // An imported submission is usually one paper.tex and no main.tex at all. Before this it
+  // was not a paper workspace, so it got an empty panel and no live compile, forever.
+  test("a lone \\documentclass file is the root when there is no main.tex", () => {
+    const dir = scratch()
+    writeFileSync(join(dir, "paper.tex"), DOC)
+    writeFileSync(join(dir, "macros.tex"), "\\newcommand{\\eg}{e.g.}")
+    expect(resolveRoot(dir)).toBe("paper.tex")
+    expect(isPaperWorkspace(dir)).toBe(true)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test("two candidate roots is an ambiguity — guess neither, and let the user name one", () => {
+    const dir = scratch()
+    writeFileSync(join(dir, "paper.tex"), DOC)
+    writeFileSync(join(dir, "poster.tex"), DOC)
+    expect(resolveRoot(dir)).toBe(null)
+    expect(isPaperWorkspace(dir)).toBe(false)
+
+    writeFileSync(join(dir, "paperino.yaml"), "root: poster.tex\n")
+    expect(resolveRoot(dir)).toBe("poster.tex")
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test("a commented-out \\documentclass does not make a file a root", () => {
+    const dir = scratch()
+    writeFileSync(join(dir, "notes.tex"), "% \\documentclass{article} — the old preamble\n")
+    expect(resolveRoot(dir)).toBe(null)
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
+
 describe("compile (integration, needs tectonic + network on first run)", () => {
   test(
     "fixture compiles to .paperino/main.pdf and writes compile.log",
@@ -128,6 +211,30 @@ describe("compile (integration, needs tectonic + network on first run)", () => {
       // folder stayed months stale, because the output only ever went to .paperino/.
       expect(existsSync(emitted)).toBe(true)
       expect(readFileSync(emitted)).toEqual(readFileSync(join(FIXTURE, ".paperino", "main.pdf")))
+    },
+    180_000,
+  )
+
+  // End to end for the configurable root: tectonic names its output after the source, so the
+  // panel's PDF and the copy beside the manuscript must both follow the root, not "main".
+  test(
+    "a paperino.yaml root: is what actually gets compiled",
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "paperino-compile-"))
+      writeFileSync(join(dir, "main.tex"), "\\documentclass{article}\\begin{document}WRONG\\end{document}")
+      writeFileSync(join(dir, "ieee.tex"), "\\documentclass{article}\\begin{document}RIGHT\\end{document}")
+      writeFileSync(join(dir, "paperino.yaml"), "root: ieee.tex\n")
+
+      const result = await compile(dir)
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.pdfPath).toBe(join(dir, ".paperino", "ieee.pdf"))
+        expect(result.emittedPath).toBe(join(dir, "ieee.pdf"))
+      }
+      expect(existsSync(join(dir, "ieee.pdf"))).toBe(true)
+      // The root it was told to ignore was never built.
+      expect(existsSync(join(dir, "main.pdf"))).toBe(false)
+      rmSync(dir, { recursive: true, force: true })
     },
     180_000,
   )

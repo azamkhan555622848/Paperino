@@ -8,7 +8,8 @@ NEJM/Lancet/JAMA, IEEE/ACM journals).
 
 A paper is a folder containing:
 
-- `paperino.yaml` — venue family, stage, title
+- `paperino.yaml` — venue family, stage, title, and optionally `root:` (which `.tex` the panel
+  compiles — see below)
 - `main.tex` — venue template; `\input`s the section files
 - `sections/` — numbered section files (`01-abstract.tex`, …). Edit THESE, not `main.tex`, for prose.
 - `figures/` — generated and user-supplied figures
@@ -27,18 +28,35 @@ window, or close it to a thin rail — and if it is closed when you push a docum
 reopens itself, so "put it in the panel" always works. It renders whichever of these
 changed last:
 
-- the compiled `main.tex` — recompiled automatically on every save, so the user sees
-  exactly what a reviewer would see. **The live compile only happens when `main.tex` sits
-  at the root of the opened project**; a manuscript in a subfolder, or under any other
-  name, is not compiled for you.
+- the compiled **root document** — recompiled automatically on every save, so the user sees
+  exactly what a reviewer would see.
 - `.paperino/preview.pdf` — any PDF you put there, shown as-is with no compile step.
 
-**Every successful compile also rewrites `main.pdf` next to `main.tex`** — the PDF the user
-opens from the folder. You do not have to build or copy it yourself: edit the `.tex`, and
-that file is current within a second or two. It is compile output, so never hand-edit it and
-never treat it as a source. Other PDFs in the folder (`main_updated.pdf`, a downloaded
-draft) are NOT rebuilt by anything — if the user is reading one of those, they are reading a
-file that no longer tracks `main.tex`, and you should say so.
+**Every successful compile also rewrites the root's PDF beside it** (`main.tex` → `main.pdf`,
+`paper.tex` → `paper.pdf`) — the file the user opens from the folder. You do not have to build
+or copy it yourself: edit the `.tex`, and it is current within a second or two. It is compile
+output, so never hand-edit it and never treat it as a source. Other PDFs in the folder
+(`main_updated.pdf`, a downloaded draft) are NOT rebuilt by anything — if the user is reading
+one of those, they are reading a file that no longer tracks the source, and you should say so.
+
+### Which file is the root
+
+The panel picks the root document like this, in order:
+
+1. **`root:` in `paperino.yaml`** — e.g. `root: main-tai-author.tex`.
+2. **`main.tex`** at the top level of the project.
+3. **The one top-level `.tex` that has a `\documentclass`**, when there is no `main.tex`.
+   Two such files is an ambiguity, and the panel picks neither.
+
+So when a project holds several manuscripts — a `main.tex` *and* the IEEE version it was
+reformatted into — the panel compiles `main.tex` until told otherwise. **If the user talks
+about a different manuscript as "the paper", set the root**: add or edit `root:` in
+`paperino.yaml`, tell them you did, and the panel is live on that file from the next save
+onward. That is a one-line edit, and it is better than compiling the same file by hand every
+time they ask.
+
+Set the root only for the manuscript the user is *working on*. A one-off look at some other
+`.tex` is what `.paperino/preview.pdf` is for.
 
 **When the user asks to see, show, open, read or preview a paper or document, put it in
 the panel. Do not answer with a summary instead.** The panel is the answer; your reply is
@@ -48,8 +66,8 @@ How to get a document into the panel:
 
 | The document is | What you do |
 |---|---|
-| a root `main.tex` | nothing — it is already live in the panel |
-| a `.tex` that is not the root `main.tex` | compile it yourself, then copy the PDF to `.paperino/preview.pdf` |
+| the root document | nothing — it is already live in the panel |
+| a `.tex` that is not the root | compile it yourself, then copy the PDF to `.paperino/preview.pdf` (or make it the root, above, if that is the paper they are working on) |
 | a PDF | `mkdir -p .paperino` then copy it to `.paperino/preview.pdf` |
 | a `.docx`/`.doc` | convert to PDF (below), writing straight to `.paperino/preview.pdf` |
 | several candidates | preview the most recent, say which one, and offer the others |
@@ -74,10 +92,10 @@ hang. If it exits non-zero the log is `.paperino/paper.log` — read it and fix 
 rather than reporting failure.
 
 **Never report that a document is on screen without checking that it is.** A preview is done
-when `.paperino/preview.pdf` exists, or `.paperino/main.pdf` exists for the live compile. If
+when `.paperino/preview.pdf` exists, or the live compile's `.paperino/<root>.pdf` does. If
 neither file is there the user is looking at an empty panel, and saying otherwise is a false
 report. For the same reason, never delete `.paperino/preview.pdf` on the assumption that the
-live compile will take over — confirm `.paperino/main.pdf` exists first, or leave the PDF
+live compile will take over — confirm `.paperino/<root>.pdf` exists first, or leave the PDF
 where it is.
 
 Converting Word to PDF — load the `docx` skill and use its script. It drives Word itself;
