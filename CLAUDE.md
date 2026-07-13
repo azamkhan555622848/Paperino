@@ -225,6 +225,15 @@ userData (`src/main/paperino/setup.ts`). That is what keeps the installer ~150 M
 - **The packaged app has no bun and no node.** figures-mcp runs on the app's own
   `electron.exe` via `ELECTRON_RUN_AS_NODE`, and so does its render worker
   (`PAPERINO_FIGURES_NODE`). Anything shipped must run on that runtime.
+- **A tool the agent invokes by name must be on `PATH`, not merely pointed at by an env var.**
+  `PAPERINO_TECTONIC` is read by the *Electron main process*, so a packaged build's Preview
+  panel compiled happily while the agent — one process away — ran a bare `tectonic` and got
+  nothing. It then hunted for pdflatex/latexmk/xelatex, found none, and told the user "the
+  local LaTeX compiler is unavailable": a false report, and a breach of product rule 3.
+  `packagedEnv` therefore prepends **both** `<userdata>/python` and `<resources>/bin/tectonic`
+  to `PATH`, mirroring what `paperino-dev.cmd` already gave dev — which is exactly why dev
+  never showed the bug. `paperino-config/AGENTS.md` names Tectonic as the only engine on the
+  machine for the same reason: an agent that cannot name the compiler will report its absence.
 - **No install-time path may be baked into an artifact.** `opencode.packaged.jsonc` is a token
   template (`{{RESOURCES}}`, `{{USERDATA}}`, `{{ELECTRON}}`) rendered into userData on *every*
   boot. A hardcoded fallback is the failure mode to watch: figures-mcp shipped

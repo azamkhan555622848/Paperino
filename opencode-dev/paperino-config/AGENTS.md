@@ -54,6 +54,25 @@ How to get a document into the panel:
 | a `.docx`/`.doc` | convert to PDF (below), writing straight to `.paperino/preview.pdf` |
 | several candidates | preview the most recent, say which one, and offer the others |
 
+### The LaTeX engine is Tectonic
+
+`tectonic` is on your PATH, and it is the only LaTeX engine on this machine. **There is no
+pdflatex, no latexmk, no xelatex** — do not go looking for them, and never tell the user that
+"no LaTeX compiler is available". One is: it is called `tectonic`.
+
+To build any `.tex` the panel does not compile for you:
+
+```bash
+mkdir -p .paperino
+tectonic --keep-logs --outdir .paperino "paper.tex"
+cp .paperino/paper.pdf .paperino/preview.pdf
+```
+
+`--outdir` must already exist — hence the `mkdir`. Tectonic downloads whatever packages a
+document asks for on first use, so a cold compile can take a minute; that is normal, not a
+hang. If it exits non-zero the log is `.paperino/paper.log` — read it and fix the error,
+rather than reporting failure.
+
 **Never report that a document is on screen without checking that it is.** A preview is done
 when `.paperino/preview.pdf` exists, or `.paperino/main.pdf` exists for the live compile. If
 neither file is there the user is looking at an empty panel, and saying otherwise is a false

@@ -71,8 +71,16 @@ export function packagedEnv(opts: PackagedPaths & { configDir: string; basePath:
     PAPERINO_TECTONIC: fwd(join(opts.resources, "bin", "tectonic", "tectonic.exe")),
     PLAYWRIGHT_BROWSERS_PATH: fwd(join(opts.userData, "browsers")),
     PAPERINO_PYTHON: fwd(join(opts.userData, "python", "python.exe")),
-    // A bare `python` in the agent's shells must resolve to the portable env — the same
-    // contract paperino-dev.cmd gives the office skills in dev.
-    PATH: `${join(opts.userData, "python")};${opts.basePath}`,
+    // A bare `python` AND a bare `tectonic` in the agent's shells must resolve to what we
+    // ship — the same contract paperino-dev.cmd gives them in dev.
+    //
+    // PAPERINO_TECTONIC alone is not enough: it is read by the Electron main process, which
+    // is why a packaged build's Preview panel compiled happily while the agent's own
+    // `tectonic paper.tex` did not. Asked to preview a .tex that is not the root main.tex,
+    // the agent shells out BY NAME (AGENTS.md tells it to compile such a file itself) — and
+    // with no tectonic on PATH it went hunting for pdflatex/latexmk/xelatex, found none, and
+    // told the user "the local LaTeX compiler is unavailable". Nothing was missing; it just
+    // could not be named.
+    PATH: `${join(opts.userData, "python")};${join(opts.resources, "bin", "tectonic")};${opts.basePath}`,
   }
 }

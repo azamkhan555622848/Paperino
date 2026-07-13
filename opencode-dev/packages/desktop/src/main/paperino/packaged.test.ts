@@ -101,6 +101,27 @@ test("packagedEnv isolates the XDG dirs and wires every tool path", () => {
     PAPERINO_TECTONIC: "C:/app/resources/paperino/bin/tectonic/tectonic.exe",
     PLAYWRIGHT_BROWSERS_PATH: "C:/ud/browsers",
     PAPERINO_PYTHON: "C:/ud/python/python.exe",
-    PATH: `${join("C:/ud", "python")};C:/Windows/system32`,
+    // Both interpreters must also be reachable BY NAME — see the next test.
+    PATH: `${join("C:/ud", "python")};${join("C:/app/resources/paperino", "bin", "tectonic")};C:/Windows/system32`,
   })
+})
+
+// The agent compiles a non-root .tex by shelling out to a bare `tectonic` (AGENTS.md tells it
+// to). PAPERINO_TECTONIC does not help there — that variable is read by the Electron main
+// process, so a packaged build's Preview panel compiled happily while the agent, one process
+// away, reported "the local LaTeX compiler is unavailable" and refused to preview the file.
+// There is no pdflatex/latexmk/xelatex to fall back to; the binary we ship has to be on PATH.
+test("a bare `tectonic` and a bare `python` resolve to the binaries we ship", () => {
+  const env = packagedEnv({
+    resources: "C:/app/resources/paperino",
+    userData: "C:/ud",
+    electronExe: "C:/app/Paperino.exe",
+    configDir: "C:/ud/paperino-config",
+    basePath: "C:/Windows/system32",
+  })
+  const dirs = env.PATH!.split(";")
+  expect(dirs).toContain(join("C:/app/resources/paperino", "bin", "tectonic"))
+  expect(dirs).toContain(join("C:/ud", "python"))
+  // Ours win over whatever the user already has installed.
+  expect(dirs.indexOf("C:/Windows/system32")).toBe(dirs.length - 1)
 })
