@@ -1,4 +1,4 @@
-/* paperino-tokens v2 */
+/* paperino-tokens v2.1 */
 /* Publication style (spec 2026-07-13). Figures reference ONLY these vars; raw hex/rgb
    in figure.html is a lint failure. Text faces are the KaTeX dist's Computer-Modern-
    derived fonts (SIL OFL), served from lib/katex/fonts/ — declared here so text works

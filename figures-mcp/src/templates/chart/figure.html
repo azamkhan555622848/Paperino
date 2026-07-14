@@ -8,23 +8,24 @@
     #fig-root { padding: 12px 12px 28px; }
     .plot { position: relative; height: 160px; border-left: var(--stroke-thin) solid var(--border-strong); border-bottom: var(--stroke-thin) solid var(--border-strong); }
     .bar { position: absolute; bottom: 0; background: var(--accent); }
-    .tick { position: absolute; font-size: var(--fs-small); color: var(--text-muted); }
+    .tick { position: absolute; font-size: var(--fs-small); color: var(--text-muted); transform: translateX(-50%); }
   </style>
 </head>
 <body>
   <div id="fig-root"><div class="plot" id="plot"></div></div>
   <script type="module">
     import { renderMath } from "../lib/math.js"
-    import { scaleLinear, scaleBand, derived } from "../lib/scale.js"
+    import { scaleLinear, scaleBand, derived, niceDomain } from "../lib/scale.js"
     import { figReady } from "../lib/annot.js"
     // Marks are positioned ONLY through scales. A hand-placed bar is a lint failure,
-    // and a number typed into a label is a provenance failure.
+    // and a number typed into a label is a provenance failure. niceDomain gives the
+    // tallest bar headroom — a bar mapped to the exact plot top reads as clipped.
     const data = window.__DATA__.series ?? []
     const plot = document.querySelector("#plot")
     const W = plot.clientWidth || 480
     const H = 160
     const x = scaleBand(data.map((d) => d.label), [0, W])
-    const y = scaleLinear([0, Math.max(...data.map((d) => d.value), 1)], [0, H])
+    const y = scaleLinear(niceDomain([0, Math.max(...data.map((d) => d.value), 1)], 4), [0, H])
     for (const [i, d] of data.entries()) {
       const bar = document.createElement("div")
       bar.className = "bar"
@@ -35,7 +36,7 @@
       plot.appendChild(bar)
       const lab = derived(d.label)
       lab.className = "tick"
-      lab.style.left = `${x(d.label)}px`
+      lab.style.left = `${x(d.label) + x.bandwidth() / 2}px` // centered under the bar
       lab.style.bottom = "-18px"
       plot.appendChild(lab)
     }

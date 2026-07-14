@@ -59,6 +59,20 @@ const flattenStrings = (v: unknown, out: string[] = []): string[] => {
   else if (v && typeof v === "object") Object.values(v).forEach((x) => flattenStrings(x, out))
   return out
 }
+// Digits that BELONG TO A NAME are notation, not a value — the 50 in "ResNet-50", the 2 in
+// "GPT-2", the 3 in "conv3", the 5 in "Top-5 error". Requiring those in data.json would make
+// rule 8 unusable on schematics, where names are most of the ink.
+//
+// The tell is a letter immediately BEFORE the digits (optionally across a hyphen). A letter
+// AFTER them is not a tell and must not exempt: "12ms", "50%", "3x" are values wearing a
+// unit, and a value wearing a unit is exactly the thing this rule exists to catch.
+const isNameDigit = (text: string, i: number) => {
+  const prev = text[i - 1]
+  if (prev && /[A-Za-z]/.test(prev)) return true // conv3, GPT2  (also ResNet-50: prev is "t")
+  if (prev === "-" && /[A-Za-z]/.test(text[i - 2] ?? "")) return true // matched without the "-"
+  return false
+}
+
 // A rendered number traces to data if it equals a value, or a rounding of one.
 const traces = (rendered: number, values: number[]) =>
   values.some((v) => {
@@ -135,22 +149,27 @@ export function lint(input: LintInput): LintError[] {
   }
   if (cats.size > 5) err("palette", "figure", `${cats.size} categorical colors`, "<= 5 (from tokens.css)")
 
-  // 8 provenance (chart/table): every non-derived rendered number traces to data.json
-  if (input.meta.archetype === "chart" || input.meta.archetype === "table") {
-    const values = flattenNumbers(input.data)
-    const labels = new Set(flattenStrings(input.data))
-    for (const t of texts) {
-      if (t.derived) continue
-      // Digits inside a formula are notation, not data: the 2 in σ² is an exponent, not
-      // a cell. Provenance governs rendered VALUES.
-      if (t.inKatex) continue
-      // a cell copied verbatim from a string in data (e.g. the step label "5C") is sourced
-      if (labels.has(t.text)) continue
-      const normalized = t.text.replace(/(?<=\d),(?=\d)/g, "") // 14,617 -> 14617
-      for (const m of normalized.matchAll(/-?\d+(?:\.\d+)?/g)) {
-        const n = Number(m[0])
-        if (!traces(n, values)) err("provenance", t.selector, m[0], "a value reachable in data.json")
-      }
+  // 8 provenance: every non-derived rendered number traces to data.json.
+  //
+  // This runs on EVERY archetype. It used to be gated to chart|table, which left schematic
+  // and gallery enforced on trust alone — and a fabricated number reaches the paper just as
+  // readily inside a schematic node label ("512 experts", "3.2x speedup") as inside a table
+  // cell. Product rule 1 is the point of this subsystem; half-enforcing it structurally was
+  // the gap.
+  const values = flattenNumbers(input.data)
+  const labels = new Set(flattenStrings(input.data))
+  for (const t of texts) {
+    if (t.derived) continue
+    // Digits inside a formula are notation, not data: the 2 in σ² is an exponent, not
+    // a cell. Provenance governs rendered VALUES.
+    if (t.inKatex) continue
+    // a cell copied verbatim from a string in data (e.g. the step label "5C") is sourced
+    if (labels.has(t.text)) continue
+    const normalized = t.text.replace(/(?<=\d),(?=\d)/g, "") // 14,617 -> 14617
+    for (const m of normalized.matchAll(/-?\d+(?:\.\d+)?/g)) {
+      if (isNameDigit(normalized, m.index ?? 0)) continue
+      const n = Number(m[0])
+      if (!traces(n, values)) err("provenance", t.selector, m[0], "a value reachable in data.json")
     }
   }
 

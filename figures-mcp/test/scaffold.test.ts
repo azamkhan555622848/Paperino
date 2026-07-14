@@ -60,7 +60,7 @@ test("scaffold refreshes vendored tokens.css + lib when the version marker diffe
   await scaffold(WS, { name: "fig-refresh", archetype: "schematic", claim: "c", caption: "cap", width: "full" })
 
   // tokens.css and lib/ are machine-owned: the upgrade is deliberate, not drift.
-  expect(readFileSync(join(WS, "figures", "tokens.css"), "utf8").split("\n")[0]).toBe("/* paperino-tokens v2 */")
+  expect(readFileSync(join(WS, "figures", "tokens.css"), "utf8").split("\n")[0]).toBe("/* paperino-tokens v2.1 */")
   expect(existsSync(join(WS, "figures", "lib", "math.js"))).toBe(true)
   expect(existsSync(join(WS, "figures", "lib", "katex", "katex.mjs"))).toBe(true)
   expect(existsSync(join(WS, "figures", "lib", "stale.js"))).toBe(false)

@@ -1,0 +1,164 @@
+/* paperino-screen-tokens v1 — CDS-derived. SCREEN ONLY.
+   Slides, posters, READMEs, HTML explainers. NEVER link this from a figures-mcp figure.
+   It will hard-fail lint, and it should:
+     rule 13 font-allowlist — the first family must start with "KaTeX_"; --font-sans does not
+     rule 12 web-chrome    — --radius is 8px; the ceiling is 3px, and box-shadow must be none
+     rule 7  palette       — >5 distinct non-gray text colours across the 9 ramps
+   (rule 5 no-raw-color regexes figure.html itself, not a linked stylesheet — so it is the
+   three above that catch you, not the hex in this file.)
+   Print figures link figures-mcp/src/assets/tokens.css instead. */
+
+:root {
+  /* surfaces — ordinal is absolute lightness in BOTH modes: 0 darkest, 3 lightest */
+  --surface-0: #f5f4ef;   /* page */
+  --surface-1: #fcfcfb;   /* in-flow card */
+  --surface-2: #ffffff;   /* panel */
+  --surface-3: #ffffff;   /* popover */
+
+  /* ink */
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --text-disabled: #b4b2a9;
+
+  /* borders */
+  --border: rgba(11, 11, 11, 0.10);
+  --border-strong: rgba(11, 11, 11, 0.18);
+  --border-stronger: rgba(11, 11, 11, 0.28);
+
+  /* role tints */
+  --bg-accent: #e6f1fb;  --text-accent: #185fa5;  --border-accent: #85b7eb;
+  --bg-success: #eaf3de; --text-success: #3b6d11; --border-success: #97c459;
+  --bg-warning: #faeeda; --text-warning: #854f0b; --border-warning: #ef9f27;
+  --bg-danger: #fcebeb;  --text-danger: #a32d2d;  --border-danger: #f09595;
+
+  /* chart chrome */
+  --gridline: #e1e0d9;
+  --axis-line: #c3c2b7;
+
+  /* type */
+  --font-sans: "Anthropic Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-voice: "Anthropic Serif", Georgia, serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  /* layout */
+  --radius: 8px;
+  --pad-sm: 8px;  --pad-md: 12px; --pad-lg: 16px; --pad-xl: 24px;
+  --gap-xs: 4px;  --gap-sm: 8px;  --gap-md: 12px; --gap-lg: 16px; --gap-xl: 24px;
+
+  /* categorical series — Tidepool. Fixed order, never cycled. 9th folds into "Other". */
+  --series-1: #2a78d6;  /* blue    */
+  --series-2: #1baf7a;  /* aqua    */
+  --series-3: #eda100;  /* yellow  */
+  --series-4: #008300;  /* green   */
+  --series-5: #4a3aa7;  /* violet  */
+  --series-6: #e34948;  /* red     */
+  --series-7: #e87ba4;  /* magenta */
+  --series-8: #eb6834;  /* orange  */
+
+  /* diverging midpoint — grey, never a hue */
+  --diverging-mid: #f0efec;
+
+  /* status — reserved. Never "series 4". Always paired with an icon + label. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-0: #131312;
+    --surface-1: #1a1a19;
+    --surface-2: #262624;
+    --surface-3: #2c2c2a;
+
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --text-disabled: #5f5e5a;
+
+    --border: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --border-stronger: rgba(255, 255, 255, 0.28);
+
+    --bg-accent: #0c447c;  --text-accent: #85b7eb;  --border-accent: #185fa5;
+    --bg-success: #27500a; --text-success: #97c459; --border-success: #3b6d11;
+    --bg-warning: #633806; --text-warning: #ef9f27; --border-warning: #854f0b;
+    --bg-danger: #791f1f;  --text-danger: #f09595;  --border-danger: #a32d2d;
+
+    --gridline: #2c2c2a;
+    --axis-line: #383835;
+
+    --series-1: #3987e5;
+    --series-2: #199e70;
+    --series-3: #c98500;
+    --series-4: #008300;
+    --series-5: #9085e9;
+    --series-6: #e66767;
+    --series-7: #d55181;
+    --series-8: #d95926;
+
+    --diverging-mid: #383835;
+  }
+}
+
+/* ── SVG helper classes ─────────────────────────────────────────────────────
+   Every <text> carries t / ts / th. Two sizes only: 14px and 12px.          */
+
+.t  { font: 400 14px var(--font-sans); fill: var(--text-primary); }
+.ts { font: 400 12px var(--font-sans); fill: var(--text-secondary); }
+.th { font: 500 14px var(--font-sans); fill: var(--text-primary); }
+
+.box    { fill: var(--surface-1); stroke: var(--border-strong); stroke-width: 0.5; }
+.arr    { stroke: var(--text-muted); stroke-width: 1.5; fill: none; }
+.leader { stroke: var(--text-muted); stroke-width: 0.5; stroke-dasharray: 3 3; fill: none; }
+
+/* Colour ramps. Apply to a <g> wrapping shape+text, or to a rect/circle/ellipse.
+   NEVER to a <path> — paths take no ramp fill.
+   Direct-child selectors: nest a <g> inside and the shapes render BLACK. Put the
+   class on the innermost group holding the shapes. */
+
+.c-purple > rect, .c-purple > circle, .c-purple > ellipse, rect.c-purple, circle.c-purple, ellipse.c-purple { fill: #EEEDFE; stroke: #534AB7; stroke-width: 0.5; }
+.c-teal   > rect, .c-teal   > circle, .c-teal   > ellipse, rect.c-teal,   circle.c-teal,   ellipse.c-teal   { fill: #E1F5EE; stroke: #0F6E56; stroke-width: 0.5; }
+.c-coral  > rect, .c-coral  > circle, .c-coral  > ellipse, rect.c-coral,  circle.c-coral,  ellipse.c-coral  { fill: #FAECE7; stroke: #993C1D; stroke-width: 0.5; }
+.c-pink   > rect, .c-pink   > circle, .c-pink   > ellipse, rect.c-pink,   circle.c-pink,   ellipse.c-pink   { fill: #FBEAF0; stroke: #993556; stroke-width: 0.5; }
+.c-gray   > rect, .c-gray   > circle, .c-gray   > ellipse, rect.c-gray,   circle.c-gray,   ellipse.c-gray   { fill: #F1EFE8; stroke: #5F5E5A; stroke-width: 0.5; }
+.c-blue   > rect, .c-blue   > circle, .c-blue   > ellipse, rect.c-blue,   circle.c-blue,   ellipse.c-blue   { fill: #E6F1FB; stroke: #185FA5; stroke-width: 0.5; }
+.c-green  > rect, .c-green  > circle, .c-green  > ellipse, rect.c-green,  circle.c-green,  ellipse.c-green  { fill: #EAF3DE; stroke: #3B6D11; stroke-width: 0.5; }
+.c-amber  > rect, .c-amber  > circle, .c-amber  > ellipse, rect.c-amber,  circle.c-amber,  ellipse.c-amber  { fill: #FAEEDA; stroke: #854F0B; stroke-width: 0.5; }
+.c-red    > rect, .c-red    > circle, .c-red    > ellipse, rect.c-red,    circle.c-red,    ellipse.c-red    { fill: #FCEBEB; stroke: #A32D2D; stroke-width: 0.5; }
+
+/* Text on a coloured fill takes the 800/900 stop of THAT ramp — never black, never grey.
+   Title and subtitle must be DIFFERENT stops or the box reads flat. */
+.c-purple > .t, .c-purple > .th { fill: #3C3489; } .c-purple > .ts { fill: #534AB7; }
+.c-teal   > .t, .c-teal   > .th { fill: #085041; } .c-teal   > .ts { fill: #0F6E56; }
+.c-coral  > .t, .c-coral  > .th { fill: #712B13; } .c-coral  > .ts { fill: #993C1D; }
+.c-pink   > .t, .c-pink   > .th { fill: #72243E; } .c-pink   > .ts { fill: #993556; }
+.c-gray   > .t, .c-gray   > .th { fill: #444441; } .c-gray   > .ts { fill: #5F5E5A; }
+.c-blue   > .t, .c-blue   > .th { fill: #0C447C; } .c-blue   > .ts { fill: #185FA5; }
+.c-green  > .t, .c-green  > .th { fill: #27500A; } .c-green  > .ts { fill: #3B6D11; }
+.c-amber  > .t, .c-amber  > .th { fill: #633806; } .c-amber  > .ts { fill: #854F0B; }
+.c-red    > .t, .c-red    > .th { fill: #791F1F; } .c-red    > .ts { fill: #A32D2D; }
+
+@media (prefers-color-scheme: dark) {
+  .c-purple > rect, rect.c-purple { fill: #3C3489; stroke: #AFA9EC; }
+  .c-teal   > rect, rect.c-teal   { fill: #085041; stroke: #5DCAA5; }
+  .c-coral  > rect, rect.c-coral  { fill: #712B13; stroke: #F0997B; }
+  .c-pink   > rect, rect.c-pink   { fill: #72243E; stroke: #ED93B1; }
+  .c-gray   > rect, rect.c-gray   { fill: #444441; stroke: #B4B2A9; }
+  .c-blue   > rect, rect.c-blue   { fill: #0C447C; stroke: #85B7EB; }
+  .c-green  > rect, rect.c-green  { fill: #27500A; stroke: #97C459; }
+  .c-amber  > rect, rect.c-amber  { fill: #633806; stroke: #EF9F27; }
+  .c-red    > rect, rect.c-red    { fill: #791F1F; stroke: #F09595; }
+
+  .c-purple > .t, .c-purple > .th { fill: #CECBF6; } .c-purple > .ts { fill: #AFA9EC; }
+  .c-teal   > .t, .c-teal   > .th { fill: #9FE1CB; } .c-teal   > .ts { fill: #5DCAA5; }
+  .c-coral  > .t, .c-coral  > .th { fill: #F5C4B3; } .c-coral  > .ts { fill: #F0997B; }
+  .c-pink   > .t, .c-pink   > .th { fill: #F4C0D1; } .c-pink   > .ts { fill: #ED93B1; }
+  .c-gray   > .t, .c-gray   > .th { fill: #D3D1C7; } .c-gray   > .ts { fill: #B4B2A9; }
+  .c-blue   > .t, .c-blue   > .th { fill: #B5D4F4; } .c-blue   > .ts { fill: #85B7EB; }
+  .c-green  > .t, .c-green  > .th { fill: #C0DD97; } .c-green  > .ts { fill: #97C459; }
+  .c-amber  > .t, .c-amber  > .th { fill: #FAC775; } .c-amber  > .ts { fill: #EF9F27; }
+  .c-red    > .t, .c-red    > .th { fill: #F7C1C1; } .c-red    > .ts { fill: #F09595; }
+}

@@ -34,7 +34,11 @@ server.registerTool(
       archetype: z.enum(["schematic", "gallery", "chart", "table"]),
       claim: z.string().min(1),
       caption: z.string().min(1),
-      width: z.enum(["narrow", "full"]).describe("narrow=550px (single column), full=1100px"),
+      width: z
+        .enum(["narrow", "full"])
+        .describe(
+          "Render viewport, print-true: narrow=312px (3.25in single column), full=528px (5.5in text width). Author at this size — never draw large and scale down, which shrinks 9pt type below the 7pt floor.",
+        ),
       alt: z.string().optional().describe("Screen-reader description; defaults to the caption"),
     },
   },

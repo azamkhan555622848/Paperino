@@ -96,7 +96,7 @@ writeFileSync(
     #fig-root { padding: 10px 12px 30px 34px; }
     .plot { position: relative; height: 150px; border-left: var(--stroke-thin) solid var(--border-strong); border-bottom: var(--stroke-thin) solid var(--border-strong); }
     .bar { position: absolute; bottom: 0; background: var(--accent); }
-    .tick-x { position: absolute; font-size: var(--fs-small); color: var(--text-muted); bottom: -17px; }
+    .tick-x { position: absolute; font-size: var(--fs-small); color: var(--text-muted); bottom: -17px; transform: translateX(-50%); }
     .tick-y { position: absolute; font-size: var(--fs-small); color: var(--text-muted); right: calc(100% + 5px); transform: translateY(50%); }
     .grid { position: absolute; left: 0; right: 0; border-top: 0.8px solid var(--border); }
     .axis-y { position: absolute; left: -30px; top: 50%; transform: rotate(-90deg) translateX(50%); transform-origin: left top; font-size: var(--fs-label); white-space: nowrap; }
@@ -110,14 +110,16 @@ writeFileSync(
   </div>
   <script type="module">
     import { renderMath } from "../lib/math.js"
-    import { scaleLinear, scaleBand, derived } from "../lib/scale.js"
+    import { scaleLinear, scaleBand, derived, niceDomain } from "../lib/scale.js"
     import { figReady } from "../lib/annot.js"
     const data = window.__DATA__.series ?? []
     const plot = document.querySelector("#plot")
     const W = plot.clientWidth || 260
     const H = 150
     const x = scaleBand(data.map((d) => d.label), [0, W])
-    const y = scaleLinear([0, Math.max(...data.map((d) => d.value), 1)], [0, H])
+    // niceDomain: headroom over the tallest bar, and the top gridline is labelled —
+    // a bar poking past the last tick into an unmarked edge reads as clipped.
+    const y = scaleLinear(niceDomain([0, Math.max(...data.map((d) => d.value), 1)], 4), [0, H])
 
     // y-axis: gridlines + tick labels. ticks() are computed, not experiment numbers, so
     // derived() stamps them for the provenance lint.
@@ -142,7 +144,7 @@ writeFileSync(
       plot.appendChild(bar)
       const lab = derived(d.label)
       lab.className = "tick-x"
-      lab.style.left = \`\${x(d.label)}px\`
+      lab.style.left = \`\${x(d.label) + x.bandwidth() / 2}px\` // centered under the bar
       plot.appendChild(lab)
     }
     await renderMath()

@@ -25,8 +25,18 @@ function ensureOverlay() {
   return overlay
 }
 
+// Tones resolve to tokens that EXIST in tokens.css v2 (two accents + ink). The v1 names
+// (pos/neg/ref) are kept as aliases: an unresolvable var() makes the inline declaration
+// invalid, SVG stroke falls back to `none`, and the arrow silently disappears — worse,
+// the render worker skips stroke:none, so the stroke-floor lint never sees it either.
 const toneColor = (tone) =>
-  ({ accent: "var(--accent)", pos: "var(--pos)", neg: "var(--neg)", ref: "var(--ref)" })[tone] ?? "var(--border-strong)"
+  ({
+    accent: "var(--accent)",
+    warm: "var(--accent-warm)",
+    pos: "var(--accent)",
+    neg: "var(--accent-warm)",
+    ref: "var(--border-strong)",
+  })[tone] ?? "var(--border-strong)"
 
 function anchor(rect, side) {
   const cx = rect.left + rect.width / 2
@@ -110,7 +120,9 @@ export function brace(sel, opts = {}) {
       const text = el(
         "text",
         { x: lx, y: ly, "text-anchor": side === "left" ? "end" : side === "right" ? "start" : "middle", "dominant-baseline": "middle" },
-        { fill: "var(--text)", "font-size": "var(--fs-label)", "font-family": "var(--font-ui)" },
+        // --font-text, not the dead v1 --font-ui: an unresolvable var() here dropped the
+        // label to the browser's default serif, which rule 13 (font-allowlist) hard-fails.
+        { fill: "var(--text)", "font-size": "var(--fs-label)", "font-family": "var(--font-text)" },
       )
       lines.forEach((line, i) => {
         const span = el("tspan", { x: lx, dy: i === 0 ? "0" : "1.25em" })
@@ -131,10 +143,12 @@ export function highlight(sel, opts = {}) {
     ensureOverlay().appendChild(
       el(
         "rect",
-        { x: r.left - pad, y: r.top - pad, width: r.width + pad * 2, height: r.height + pad * 2, rx: 6 },
+        // Square corners, no fill: the pastel --accent-soft era ended with tokens v2
+        // (spec 2026-07-13) — and an unresolvable var() computes fill to BLACK, so the
+        // old default painted a dark slab over the highlighted element.
+        { x: r.left - pad, y: r.top - pad, width: r.width + pad * 2, height: r.height + pad * 2, rx: 0 },
         {
-          fill: tone === "accent" ? "var(--accent-soft)" : "none",
-          "fill-opacity": "0.5",
+          fill: "none",
           stroke: toneColor(tone),
           "stroke-width": "var(--stroke)",
           "stroke-dasharray": (opts.style ?? "dashed") === "dashed" ? "5 4" : "none",

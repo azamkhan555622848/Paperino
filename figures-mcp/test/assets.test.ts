@@ -23,7 +23,7 @@ test("math.js exists and renders .math spans via the vendored katex", () => {
 
 test("tokens.css is v2 publication style", () => {
   const css = readFileSync(join(import.meta.dir, "..", "src", "assets", "tokens.css"), "utf8")
-  expect(css.split("\n")[0]).toBe("/* paperino-tokens v2 */")
+  expect(css.split("\n")[0]).toBe("/* paperino-tokens v2.1 */")
   expect(css).toContain('font-family: "KaTeX_Main"')
   expect(css).toContain(".panel-label")
   expect(css).not.toContain("Segoe UI")

@@ -116,11 +116,17 @@ every number, one SVG overlay for arrows and braces. Five tools — `figure_scaf
   figure PDF carries dead whitespace.
 - SVG presentation attributes do not resolve `var()`. Set stroke and fill via inline
   `style`.
-- Lint rule 8 (`provenance`) makes a hallucinated number in a chart or table a hard
-  failure. It must still exempt data-sourced *string* cells (`"5C"`), see through
-  thousands separators, and ignore digits inside a formula (the 2 in σ² is an exponent,
-  not a cell). This rule is the point of the subsystem — do not weaken it to make a
-  figure pass.
+- Lint rule 8 (`provenance`) makes a hallucinated number a hard failure. It must still
+  exempt data-sourced *string* cells (`"5C"`), see through thousands separators, and ignore
+  digits inside a formula (the 2 in σ² is an exponent, not a cell). This rule is the point
+  of the subsystem — do not weaken it to make a figure pass.
+  **It runs on every archetype.** It was gated to `chart|table` until 2026-07-13, which left
+  `schematic` and `gallery` enforced on trust — and an invented "512 experts" ships from a
+  schematic node label exactly as readily as from a table cell. Extending it needed one
+  concession, `isNameDigit`: digits are exempt when a letter *precedes* them (`ResNet-50`,
+  `GPT-2`, `conv3` — names are most of the ink in a schematic), and **not** when a letter
+  merely follows (`12ms`, `50%`, `3.2x` are values wearing a unit, which is the thing the rule
+  is for). Getting that asymmetry backwards would gut the rule.
 - **v2 (2026-07-13) is publication-grade** (spec `2026-07-13-figure-studio-publication-grade-design.md`).
   The old north star was transformer-circuits — a *blog* — so tokens shipped Segoe UI and
   rounded pastel cards, `.mono` was the only way to write a symbol (hence monospace
@@ -130,6 +136,28 @@ every number, one SVG overlay for arrows and braces. Five tools — `figure_scaf
   at Chromium's 96dpi PDF mapping, so `\includegraphics[width=\linewidth]` lands ~1:1).
   Lint is 13 rules — `pseudo-math`, `web-chrome` (radius/shadow) and a `KaTeX_*`
   `font-allowlist` are hard failures.
+- **annot.js may only reference tokens that exist** (v2.1, 2026-07-14). The v2 retrofit
+  deleted `--pos/--neg/--ref/--font-ui/--accent-soft` from tokens.css but annot.js kept
+  using them, and an unresolvable `var()` fails *silently*: SVG stroke computes to `none`
+  (invisible toned arrows — which stroke-floor lint never sees, because the render worker
+  skips `stroke: none`), fill computes to **black** (highlight drew a dark slab), and brace
+  labels fell to the default serif (auto-fail on rule 13). v2.1 maps tones onto the v2 ink
+  (`pos→accent`, `neg/warm→accent-warm`, `ref→border-strong`), sets brace labels in
+  `--font-text`, and squares highlight's corners. The marker bump to v2.1 is what re-vendors
+  the fixed lib/ into existing workspaces.
+- **Charts get headroom via `niceDomain`** (lib/scale.js): mapping the data max to the exact
+  plot top makes the tallest bar poke past the last labelled gridline and read as clipped.
+  Category tick labels are centered under their band (`x + bandwidth/2`, `translateX(-50%)`),
+  not left-aligned to its edge.
+  **The domain must end on a tick, and that is not free.** `niceStep` used to round a raw
+  step *up* to the next of 1/2/5/10, so `niceStep(2)` was 5: a `[0, 8]` axis asked for four
+  ticks and got `[0, 5]`, the top gridline was unlabelled, and no bar's value could be read —
+  the v2.1 exemplar shipped in exactly that state, which is why the north-star PNGs must be
+  *looked at*, not merely regenerated. It now snaps to the *nearest* of 1/2/5/10 (d3's ladder;
+  thresholds √2, √10, √50), and `niceDomain` **iterates to a fixed point** — widening a domain
+  changes the step `ticks()` derives from it (`[0,1250]` → step 200 → `[0,1400]` → step 500 →
+  stops at 1000), so one pass does not converge. `test/scale.test.ts` pins the invariant across
+  fifteen maxima; if you touch either function, that test is the contract.
 - **KaTeX's hidden MathML twin is not ink.** KaTeX emits a MathML copy of every formula
   for screen readers, *clipped* rather than `display:none`, so it still has client rects.
   The render worker skips `.katex-mathml` — left in, it duplicated every glyph (bogus

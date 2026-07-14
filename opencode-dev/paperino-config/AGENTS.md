@@ -151,6 +151,15 @@ illustrative. If the user states a preference up front ("just generate it", "use
 PaperBanana"), honour it and skip the question. If they say "you choose", pick A and give
 the one-line reason.
 
+**Once the pipeline is picked, load the `visual-design` skill before you draw anything.** It
+is the house design system — how to choose the form (sometimes the answer is not a chart),
+how to assign colour (by meaning, never by sequence), how to set type, marks and booktabs
+tables, and the review loop that separates a publication-grade figure from a merely correct
+one. It has two modes and they are not convertible after the fact: **print** (paper tokens,
+lint-clean, authored at 528px/312px) for anything landing in the manuscript, and **screen**
+(the CDS look) for slides, posters and READMEs. Loading it does not excuse you from the
+pipeline question above.
+
 ### Option B — PaperBanana (the `paperbanana` tools)
 
 `generate_figure(workspace, name, method_content, caption, aspect_ratio, candidates,

@@ -110,6 +110,38 @@ test("provenance exempts data-derived nodes", () => {
   expect(rules(base({ meta, data: {}, manifest: m }))).toEqual([])
 })
 
+// Rule 8 used to be gated to chart|table. A fabricated number reaches the paper just as
+// readily through a schematic node label, so it now runs on every archetype.
+test("provenance runs on schematic and gallery, not just chart and table", () => {
+  const m = mf({ texts: [box({ text: "512 experts" })] })
+  for (const archetype of ["schematic", "gallery", "chart", "table"]) {
+    const meta = { archetype, caption: "c", alt: "a", claim: "x" }
+    expect(rules(base({ meta, data: { experts: 999 }, manifest: m }))).toContain("provenance")
+    expect(rules(base({ meta, data: { experts: 512 }, manifest: m }))).toEqual([])
+  }
+})
+
+// Names are most of the ink in a schematic. Digits inside one are notation, not a claim —
+// the tell is a letter BEFORE the digits, optionally across a hyphen.
+test("provenance exempts digits that belong to a name", () => {
+  const meta = { archetype: "schematic", caption: "c", alt: "a", claim: "x" }
+  for (const text of ["ResNet-50", "GPT-2", "conv3", "Top-5 error", "a 3x3 conv on ResNet-50"]) {
+    const m = mf({ texts: [box({ text })] })
+    // "3x3" leads with a bare 3, so seed it; every other digit here rides a name.
+    expect(rules(base({ meta, data: { kernel: 3 }, manifest: m }))).toEqual([])
+  }
+})
+
+// ...but a letter AFTER the digits is a unit, not a name. A value wearing a unit is exactly
+// what this rule exists to catch.
+test("provenance does not exempt a value wearing a unit", () => {
+  const meta = { archetype: "schematic", caption: "c", alt: "a", claim: "x" }
+  for (const text of ["12ms", "50%", "3.2x speedup"]) {
+    const m = mf({ texts: [box({ text })] })
+    expect(rules(base({ meta, data: { unrelated: 7 }, manifest: m }))).toContain("provenance")
+  }
+})
+
 test("root-svg", () => {
   expect(rules(base({ source: `<svg width="550" height="300"><rect/></svg>` }))).toContain("root-svg")
   expect(rules(base({ source: `<svg viewBox="0 0 550 300"><rect/></svg>` }))).toEqual([])
