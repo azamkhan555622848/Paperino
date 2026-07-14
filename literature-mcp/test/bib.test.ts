@@ -34,6 +34,23 @@ test("scanBib reads keys and ids back out, lowercasing the DOI", () => {
   expect(entries[0]!.doi).toBe("10.1000/abc.123")
 })
 
+// What doi.org ACTUALLY returns: the entire entry on one line, closing with " }". An
+// entry-terminating regex anchored on a newline (\n\s*\}) never matches it — so every real
+// resolved entry was invisible to the dedupe scan, and citing the same DOI twice appended it
+// twice. The multi-line fixture above hid that completely. Brace-count instead.
+test("scanBib reads the single-line entries doi.org really returns", () => {
+  const real =
+    ` @article{Jumper_2021, title={Highly accurate protein structure prediction with AlphaFold},` +
+    ` volume={596}, ISSN={1476-4687}, DOI={10.1038/s41586-021-03819-2}, number={7873},` +
+    ` journal={Nature}, author={Jumper, John and Evans, Richard}, year={2021}, month=July,` +
+    ` pages={583–589} }\n`
+  const entries = scanBib(real)
+  expect(entries).toHaveLength(1)
+  expect(entries[0]!.key).toBe("Jumper_2021")
+  expect(entries[0]!.doi).toBe("10.1038/s41586-021-03819-2")
+  expect(entries[0]!.title).toBe("Highly accurate protein structure prediction with AlphaFold")
+})
+
 test("citeKey is family+year+first significant title word", () => {
   const key = citeKey(
     { author: "Khan, Azam and Honda, Karen", year: "2026", title: "The Sensitivity of KV Caches" },

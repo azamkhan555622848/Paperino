@@ -73,11 +73,28 @@ export function withKey(bibtex: string, key: string): string {
 /**
  * A tolerant SCAN, deliberately not a parse. Its only job is dedupe and listing; if it misses a
  * malformed entry the worst outcome is a duplicate append, never a corrupted file.
+ *
+ * The entry's extent is found by COUNTING BRACES, not by matching a line ending. doi.org returns
+ * the whole entry on a single line (`@article{Jumper_2021, title={...}, ... pages={583-589} }`),
+ * so a terminator anchored on a newline matches nothing — which made every real resolved entry
+ * invisible here, and citing one DOI twice appended it twice.
  */
 export function scanBib(text: string): BibEntry[] {
   const out: BibEntry[] = []
-  for (const m of text.matchAll(/@\w+\s*\{\s*([^,\s]+)\s*,[\s\S]*?\n\s*\}/g)) {
-    const entry = m[0]
+  for (const m of text.matchAll(/@\w+\s*\{\s*([^,\s{}]+)\s*,/g)) {
+    const open = text.indexOf("{", m.index)
+    let depth = 0
+    let end = -1
+    for (let i = open; i < text.length; i++) {
+      const c = text[i]
+      if (c === "{") depth++
+      else if (c === "}" && --depth === 0) {
+        end = i
+        break
+      }
+    }
+    if (end === -1) continue // unbalanced: not an entry we can trust, so not one we dedupe against
+    const entry = text.slice(m.index, end + 1)
     out.push({
       key: m[1]!,
       title: field(entry, "title") || undefined,
