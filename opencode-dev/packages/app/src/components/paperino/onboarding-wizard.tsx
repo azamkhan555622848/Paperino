@@ -11,6 +11,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useProviders } from "@/hooks/use-providers"
 import { DialogConnectProvider, useProviderConnectController } from "../dialog-connect-provider"
 import { KEY_PROVIDERS, nextStep, wizardSteps, type KeyProvider, type WizardStep } from "./onboarding-steps"
+import { GlassStyle, StepDots, TourCitations, TourFigures, TourModels, TourPreview } from "./onboarding-tour"
 
 type SetupComponent = "chromium" | "python"
 type SetupProgress = { component: SetupComponent; phase: string; percent?: number }
@@ -61,7 +62,6 @@ function Wizard(props: { packaged: boolean }) {
   const [step, setStep] = createSignal<WizardStep>("welcome")
 
   const steps = createMemo(() => wizardSteps(props.packaged))
-  const position = createMemo(() => steps().indexOf(step()) + 1)
   const last = createMemo(() => steps().at(-1))
 
   // Continuing and skipping are the same move: every step is optional, and each stays reachable
@@ -79,6 +79,7 @@ function Wizard(props: { packaged: boolean }) {
   return (
     <Dialog
       size="large"
+      class="paperino-onboarding-glass"
       title={
         <div class="flex items-center gap-2">
           <Mark class="size-5" />
@@ -86,29 +87,47 @@ function Wizard(props: { packaged: boolean }) {
         </div>
       }
     >
+      <GlassStyle />
       <div class="flex flex-col gap-6">
-        <Switch>
-          <Match when={step() === "welcome"}>
-            <WelcomeStep />
-          </Match>
-          <Match when={step() === "runtime"}>
-            <RuntimeStep />
-          </Match>
-          <Match when={step() === "chatgpt"}>
-            <ChatGPTStep />
-          </Match>
-          <Match when={step() === "paperclip"}>
-            <PaperclipStep />
-          </Match>
-          <Match when={step() === "figure-key"}>
-            <FigureKeyStep onSaved={() => void advance()} />
-          </Match>
-        </Switch>
+        {/* keyed: the wrapper remounts on every step change, re-running the .pg-enter animation */}
+        <Show when={step()} keyed>
+          {(current) => (
+            <div class="pg-enter">
+              <Switch>
+                <Match when={current === "welcome"}>
+                  <WelcomeStep />
+                </Match>
+                <Match when={current === "tour-preview"}>
+                  <TourPreview />
+                </Match>
+                <Match when={current === "runtime"}>
+                  <RuntimeStep />
+                </Match>
+                <Match when={current === "tour-models"}>
+                  <TourModels />
+                </Match>
+                <Match when={current === "chatgpt"}>
+                  <ChatGPTStep />
+                </Match>
+                <Match when={current === "tour-citations"}>
+                  <TourCitations />
+                </Match>
+                <Match when={current === "paperclip"}>
+                  <PaperclipStep />
+                </Match>
+                <Match when={current === "tour-figures"}>
+                  <TourFigures />
+                </Match>
+                <Match when={current === "figure-key"}>
+                  <FigureKeyStep onSaved={() => void advance()} />
+                </Match>
+              </Switch>
+            </div>
+          )}
+        </Show>
 
         <div class="flex items-center justify-between">
-          <span class="text-12-regular text-text-weak">
-            Step {position()} of {steps().length}
-          </span>
+          <StepDots steps={steps()} current={step()} />
           <div class="flex items-center gap-2">
             <Show when={step() !== "welcome"}>
               <Button variant="ghost" onClick={() => void advance()}>
