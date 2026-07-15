@@ -3,16 +3,38 @@
  * can be tested without a DOM. Same split as preview-kind.ts beside the preview panel.
  */
 
-export type WizardStep = "welcome" | "runtime" | "chatgpt" | "paperclip" | "figure-key"
+export type WizardStep =
+  | "welcome"
+  | "tour-preview"
+  | "runtime"
+  | "tour-models"
+  | "chatgpt"
+  | "tour-citations"
+  | "paperclip"
+  | "tour-figures"
+  | "figure-key"
 
 /**
  * Runtime setup exists only in a packaged install: a dev run takes Chromium and Python from the
  * repo, so offering to download them there would be theatre.
+ *
+ * Tour slides are interleaved, each immediately before the setup step it motivates — the user
+ * learns a feature and then acts on it while it is still in their head.
  */
 export function wizardSteps(packaged: boolean): WizardStep[] {
   return packaged
-    ? ["welcome", "runtime", "chatgpt", "paperclip", "figure-key"]
-    : ["welcome", "chatgpt", "paperclip", "figure-key"]
+    ? [
+        "welcome",
+        "tour-preview",
+        "runtime",
+        "tour-models",
+        "chatgpt",
+        "tour-citations",
+        "paperclip",
+        "tour-figures",
+        "figure-key",
+      ]
+    : ["welcome", "tour-preview", "tour-models", "chatgpt", "tour-citations", "paperclip", "tour-figures", "figure-key"]
 }
 
 /** The next step, or undefined when the wizard is over. Continuing and skipping land here alike. */
