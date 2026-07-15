@@ -45,6 +45,51 @@
       "environment": {
         "PAPERBANANA_ROOT": "{{RESOURCES}}/paperbanana/PaperBanana-main"
       }
+    },
+    // Literature: resolves a DOI/arXiv/PMID into references.bib. Same runtime trick as figures — a
+    // node-target bundle on the app's own executable. Calls are seconds, so the default timeout is
+    // fine (unlike paperbanana, which needs 10 minutes).
+    "literature": {
+      "type": "local",
+      "command": ["{{ELECTRON}}", "{{RESOURCES}}/literature-mcp/server.mjs"],
+      "enabled": true,
+      "environment": {
+        "ELECTRON_RUN_AS_NODE": "1"
+      }
+    },
+    // Paperclip: literature discovery and full-text reading, as a hosted remote MCP.
+    //
+    // No credential appears here, and none should. Its endpoint answers an unauthenticated
+    // initialize with a WWW-Authenticate challenge and serves both OAuth discovery documents,
+    // advertising dynamic client registration and PKCE — the MCP OAuth 2.1 flow, which opencode
+    // implements client-side. The user clicks Connect once and the sidecar holds the tokens. The
+    // api-key header shown in Paperclip's docs is for their Python SDK; putting a static key here
+    // would bake one machine's secret into an installer that ships to everybody.
+    "paperclip": {
+      "type": "remote",
+      "url": "https://paperclip.gxl.ai/mcp",
+      "enabled": true
+    }
+  },
+  // Product rule 2, made structural. references.bib is machine-owned: only literature-mcp's `cite`
+  // writes it, and `cite` accepts an identifier — never BibTeX text. Without this deny the rule is
+  // just a sentence in AGENTS.md, and an agent that can hand-write an entry can hand-write an
+  // invented one. It matters more now that paperclip's `export` tool hands the agent real BibTeX as
+  // a string: pasting it is one edit away.
+  //
+  // Permission.evaluate uses findLast, so LATER keys win — the allow-all must come first.
+  // edit/write/apply_patch all fold into the "edit" permission (permission/index.ts:205), and the
+  // pattern matched is the path relative to the worktree (tool/edit.ts:104).
+  "permission": {
+    "edit": {
+      "*": "allow",
+      "references.bib": "deny"
+    },
+    // A shell redirect would go around the edit tool entirely. `ask`, not `deny`: reading the file
+    // is legitimate, and a prompt makes an attempted write visible instead of silently failing.
+    "bash": {
+      "*": "allow",
+      "*references.bib*": "ask"
     }
   }
 

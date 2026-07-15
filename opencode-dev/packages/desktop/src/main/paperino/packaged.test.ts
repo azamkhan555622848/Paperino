@@ -1,8 +1,8 @@
-import { expect, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { ensurePackagedConfig, packagedEnv, renderTemplate } from "./packaged"
+import { ensurePackagedConfig, packagedEnv, packagedTokens, renderTemplate } from "./packaged"
 
 // Three files declare the app id independently: electron-builder stamps it into the installer,
 // main/index.ts derives userData from it, and copy-metainfo.ts names the Linux AppStream entry
@@ -124,4 +124,54 @@ test("a bare `tectonic` and a bare `python` resolve to the binaries we ship", ()
   expect(dirs).toContain(join("C:/ud", "python"))
   // Ours win over whatever the user already has installed.
   expect(dirs.indexOf("C:/Windows/system32")).toBe(dirs.length - 1)
+})
+
+describe("the packaged config registers the citation stack", () => {
+  const rendered = () => {
+    // packaged.test.ts lives at packages/desktop/src/main/paperino/
+    const template = readFileSync(
+      join(import.meta.dir, "..", "..", "..", "..", "..", "paperino-config", "opencode.packaged.jsonc"),
+      "utf8",
+    )
+    return renderTemplate(
+      template,
+      packagedTokens({
+        resources: "C:/app/resources/paperino",
+        userData: "C:/ud",
+        electronExe: "C:/app/Paperino.exe",
+      }),
+    )
+  }
+
+  test("literature-mcp runs on the app's own executable", () => {
+    const config = rendered()
+    expect(config).toContain("C:/app/resources/paperino/literature-mcp/server.mjs")
+    expect(config).toContain('"ELECTRON_RUN_AS_NODE": "1"')
+  })
+
+  // Paperclip authenticates by MCP OAuth (dynamic client registration + PKCE). An X-API-Key here
+  // would bake a secret into the installer — and ship one user's key to everyone who downloads it.
+  test("paperclip is a bare URL with no credential in it", () => {
+    const config = rendered()
+    expect(config).toContain('"url": "https://paperclip.gxl.ai/mcp"')
+    expect(config).not.toContain("X-API-Key")
+    expect(config).not.toContain("gxl_")
+  })
+
+  // The keystone of product rule 2. Without this the agent can hand-write references.bib — or paste
+  // in the BibTeX that paperclip's own `export` tool hands it — and "machine-owned" means nothing.
+  // findLast semantics: the allow must come FIRST, or the deny is shadowed and silently useless.
+  test("the agent is denied write access to references.bib", () => {
+    const config = rendered()
+    const edit = config.indexOf('"edit"')
+    expect(edit).toBeGreaterThan(-1)
+    const allow = config.indexOf('"*": "allow"', edit)
+    const deny = config.indexOf('"references.bib": "deny"', edit)
+    expect(allow).toBeGreaterThan(-1)
+    expect(deny).toBeGreaterThan(allow)
+  })
+
+  test("no token survives rendering", () => {
+    expect(rendered()).not.toContain("{{")
+  })
 })

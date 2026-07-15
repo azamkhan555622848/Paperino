@@ -35,6 +35,18 @@
       "enabled": true,
       "timeout": 600000
     },
+    // Literature: DOI/arXiv/PMID -> references.bib. The ONLY writer of that file.
+    "literature": {
+      "type": "local",
+      "command": ["bun", "C:/Users/azamk/Documents/Paperino/literature-mcp/src/server.ts"],
+      "enabled": true
+    },
+    // Paperclip: hosted literature index. OAuth (dynamic client registration + PKCE) — no key here.
+    "paperclip": {
+      "type": "remote",
+      "url": "https://paperclip.gxl.ai/mcp",
+      "enabled": true
+    },
     "freecad": { "enabled": false },
     "kicad": { "enabled": false },
     "partfetch": { "enabled": false },
@@ -61,6 +73,21 @@
       "*-iot": "deny",
       "mobile-developer": "deny",
       "flutter-expert": "deny"
+    },
+    // Product rule 2, made structural. references.bib is machine-owned: only literature-mcp's
+    // `cite` writes it, and `cite` takes an identifier — never BibTeX text. Without this deny the
+    // rule is just a sentence in AGENTS.md, and an agent that can hand-write an entry can hand-write
+    // an invented one. Must match opencode.packaged.jsonc exactly — the wall has to exist in both.
+    // findLast semantics: the allow-all comes first, or the deny is shadowed and silently useless.
+    "edit": {
+      "*": "allow",
+      "references.bib": "deny"
+    },
+    // A shell redirect would go around the edit tool entirely. `ask`, not `deny`: reading the file
+    // is legitimate, and a prompt makes an attempted write visible instead of silently failing.
+    "bash": {
+      "*": "allow",
+      "*references.bib*": "ask"
     }
   }
 }

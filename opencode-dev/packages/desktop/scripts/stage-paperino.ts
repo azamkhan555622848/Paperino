@@ -38,6 +38,10 @@ for (const bin of ["tectonic", "jq"]) {
 await $`bun ${join(paperino, "figures-mcp", "scripts", "build-dist.ts")}`.cwd(join(paperino, "figures-mcp"))
 cpSync(join(paperino, "figures-mcp", "dist"), join(out, "figures-mcp"), { recursive: true })
 
+// 3b. literature-mcp, same node-target trick. Paperclip needs no staging at all — it is a URL.
+await $`bun ${join(paperino, "literature-mcp", "scripts", "build-dist.ts")}`.cwd(join(paperino, "literature-mcp"))
+cpSync(join(paperino, "literature-mcp", "dist"), join(out, "literature-mcp"), { recursive: true })
+
 // 4. PaperBanana: our server, its lock, and the upstream source (minus repo junk).
 const pbOut = join(out, "paperbanana")
 mkdirSync(pbOut, { recursive: true })
