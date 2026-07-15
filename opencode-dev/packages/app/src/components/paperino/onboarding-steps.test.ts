@@ -3,11 +3,11 @@ import { KEY_PROVIDERS, nextStep, wizardSteps } from "./onboarding-steps"
 
 describe("wizardSteps", () => {
   test("a packaged install is offered the runtime downloads", () => {
-    expect(wizardSteps(true)).toEqual(["welcome", "runtime", "chatgpt", "figure-key"])
+    expect(wizardSteps(true)).toEqual(["welcome", "runtime", "chatgpt", "paperclip", "figure-key"])
   })
 
   test("a dev run is not — Chromium and Python already come from the repo", () => {
-    expect(wizardSteps(false)).toEqual(["welcome", "chatgpt", "figure-key"])
+    expect(wizardSteps(false)).toEqual(["welcome", "chatgpt", "paperclip", "figure-key"])
   })
 })
 
@@ -15,7 +15,8 @@ describe("nextStep", () => {
   test("walks the packaged order", () => {
     expect(nextStep("welcome", true)).toBe("runtime")
     expect(nextStep("runtime", true)).toBe("chatgpt")
-    expect(nextStep("chatgpt", true)).toBe("figure-key")
+    expect(nextStep("chatgpt", true)).toBe("paperclip")
+    expect(nextStep("paperclip", true)).toBe("figure-key")
   })
 
   test("skips runtime in dev rather than dead-ending on it", () => {

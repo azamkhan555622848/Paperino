@@ -3,14 +3,16 @@
  * can be tested without a DOM. Same split as preview-kind.ts beside the preview panel.
  */
 
-export type WizardStep = "welcome" | "runtime" | "chatgpt" | "figure-key"
+export type WizardStep = "welcome" | "runtime" | "chatgpt" | "paperclip" | "figure-key"
 
 /**
  * Runtime setup exists only in a packaged install: a dev run takes Chromium and Python from the
  * repo, so offering to download them there would be theatre.
  */
 export function wizardSteps(packaged: boolean): WizardStep[] {
-  return packaged ? ["welcome", "runtime", "chatgpt", "figure-key"] : ["welcome", "chatgpt", "figure-key"]
+  return packaged
+    ? ["welcome", "runtime", "chatgpt", "paperclip", "figure-key"]
+    : ["welcome", "chatgpt", "paperclip", "figure-key"]
 }
 
 /** The next step, or undefined when the wizard is over. Continuing and skipping land here alike. */

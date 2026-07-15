@@ -97,6 +97,9 @@ function Wizard(props: { packaged: boolean }) {
           <Match when={step() === "chatgpt"}>
             <ChatGPTStep />
           </Match>
+          <Match when={step() === "paperclip"}>
+            <PaperclipStep />
+          </Match>
           <Match when={step() === "figure-key"}>
             <FigureKeyStep onSaved={() => void advance()} />
           </Match>
@@ -267,6 +270,80 @@ function ChatGPTStep() {
             Sign in with ChatGPT
           </Button>
         </div>
+      </Show>
+    </div>
+  )
+}
+
+/**
+ * Connect Paperclip — the literature index the agent searches. Like the ChatGPT step, this does not
+ * reimplement OAuth: Paperclip's MCP endpoint advertises dynamic client registration and PKCE, and
+ * the sidecar already speaks that flow, so we drive exactly the calls the MCP settings UI makes
+ * (server-sync.tsx:64,497-503). No API key is involved, and none should be — a key in the config
+ * would ship one machine's secret inside everybody's installer.
+ *
+ * `needs_client_registration` is the first-run state, and registration happens on CONNECT — so that
+ * status wants connect(), not authenticate(). useServerSDK returns an accessor, so it is
+ * serverSDK().client, exactly as FigureKeyStep calls it.
+ */
+function PaperclipStep() {
+  const serverSDK = useServerSDK()
+  const [status, setStatus] = createSignal<string>("unknown")
+  const [busy, setBusy] = createSignal(false)
+  const [error, setError] = createSignal<string>()
+
+  const refresh = async () => {
+    const all = (await serverSDK()
+      .client.mcp.status()
+      .then((r) => r.data ?? {})) as Record<string, { status?: string }>
+    setStatus(all["paperclip"]?.status ?? "unknown")
+  }
+
+  onMount(() => void refresh().catch(() => setStatus("unknown")))
+
+  async function connect() {
+    setBusy(true)
+    setError(undefined)
+    try {
+      if (status() === "needs_auth") await serverSDK().client.mcp.auth.authenticate({ name: "paperclip" })
+      else await serverSDK().client.mcp.connect({ name: "paperclip" })
+      await refresh()
+    } catch {
+      setError("Could not reach Paperclip. Check your connection and try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div class="flex flex-col gap-4">
+      <div class="text-14-regular text-text-base">
+        Connect Paperclip to search the literature — millions of full-text papers from PMC, arXiv,
+        bioRxiv and OpenAlex, plus clinical trials and regulatory filings.
+      </div>
+      <div class="text-14-regular text-text-weak">
+        It signs you in through your browser; there is no API key to paste. Papers you cite from it
+        are written into <span class="text-text-base">references.bib</span> from the publisher's own
+        record.
+      </div>
+      <Show
+        when={status() !== "connected"}
+        fallback={
+          <div class="flex items-center gap-2 text-14-regular text-text-base">
+            <Icon name="check" /> Paperclip is connected.
+          </div>
+        }
+      >
+        <div>
+          <Button variant="secondary" disabled={busy()} onClick={() => void connect()}>
+            <Show when={busy()} fallback="Connect Paperclip">
+              <Spinner />
+            </Show>
+          </Button>
+        </div>
+      </Show>
+      <Show when={error()}>
+        <div class="text-14-regular text-text-danger">{error()}</div>
       </Show>
     </div>
   )
