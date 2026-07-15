@@ -189,6 +189,50 @@ as one tool, `generate_figure`.
   numbers. That tradeoff is stated to the user, and the agent is required to offer both
   pipelines and wait for a choice before drawing anything.
 
+## literature-mcp
+
+Makes product rule 2 structural: `references.bib` becomes a file the agent *cannot write*, and
+every entry in it is resolved from a DOI, arXiv id or PMID. Discovery is a separate remote server,
+**Paperclip** (`paperclip.gxl.ai`); we own only the writer. Two local tools — `cite`, `bib_list` —
+plus `src/{ids,bib,resolve,server}.ts`. Tests: `bun test` (24), same node-target bundle trick as
+figures-mcp (`scripts/build-dist.ts` → `dist/server.mjs`, run on the app's own `electron.exe`).
+
+- **Paperclip is a remote MCP with OAuth, not an API key.** Probed 2026-07-14: its `/mcp` endpoint
+  answers an unauthenticated `initialize` with a `WWW-Authenticate` challenge and serves both OAuth
+  discovery docs, advertising dynamic client registration + PKCE — the flow opencode already speaks
+  client-side. **Never put an `X-API-Key` in a config** (the packaged test greps for the literal
+  string, comment included): a key there ships one machine's secret inside every installer. The
+  api-key header in Paperclip's docs is for their *Python SDK*, not for us. The wizard's Paperclip
+  step drives `client.mcp.status/connect/auth.authenticate` — the same calls the MCP settings UI
+  makes (`server-sync.tsx:64,497-503`); `useServerSDK()` is an accessor, so it is `serverSDK().client`.
+- **`cite` accepts an identifier only.** There is deliberately no tool that takes BibTeX text —
+  because paperclip's own `export` hands the agent a BibTeX *string*, and pasting it is one edit
+  away. `parseId` refuses fuzzy input (a title, an author): a closest match is how a wrong citation
+  enters a paper. A bare integer is refused too — a PMID needs its `pmid:` prefix, so a mistype
+  fails loudly instead of citing whatever paper holds that number.
+- **The `permission.edit` deny on `references.bib` is the keystone** — without it, rule 2 is just a
+  sentence in AGENTS.md. `Permission.evaluate` uses `findLast`, so LATER keys win: `"*": "allow"`
+  must come **before** `"references.bib": "deny"`, or the deny is silently shadowed. `edit`, `write`
+  and `apply_patch` all fold into the one `edit` permission (`permission/index.ts:205`), and the
+  matched pattern is the path **relative to the worktree** (`tool/edit.ts:104`). A `bash` `ask` on
+  `*references.bib*` covers the shell-redirect end-run; `ask` not `deny`, because reading is fine.
+  The wall must exist in **both** `opencode.jsonc` and `opencode.packaged.jsonc` — dev and packaged
+  cannot drift, or the feature gets developed against a config that lacks it.
+- **The DOI-upgrade rule.** An arXiv or PubMed record carrying a DOI is cited by that DOI: once a
+  preprint is published, citing the preprint misrepresents the work. `resolve.ts` follows the
+  `<arxiv:doi>` / PubMed `IdType="doi"` and reports `upgradedFrom`. If the ATLAS/AlphaFold upgrade
+  tests ever stop upgrading, the *record* lost its DOI — investigate that, do not relax the rule.
+- **Dedupe is on the resolved DOI, not the id passed in** (`findExisting`), so citing a paper by its
+  arXiv id today and its published DOI tomorrow is idempotent — `cite` returns `already-present` and
+  writes nothing. Matching only the passed id would let the same work in twice by two names.
+- **`scanBib` is a regex scan, not a parser**, and finds an entry's extent by **counting braces**,
+  not by a newline terminator — doi.org returns the whole entry on one line, so a `\n\s*\}` anchor
+  matched nothing and made every real resolved entry invisible to dedupe (caught only by probing the
+  live endpoint; a tidy multi-line fixture hid it). A missed entry costs a duplicate append, never a
+  corrupted file: `appendEntry` writes atomically (temp + rename) and only ever appends — existing
+  bytes are copied verbatim, never reformatted. A citation manager that rewrites your file earns
+  distrust.
+
 ## Office skills (xlsx / docx / pdf)
 
 `paperino-config/skill/{xlsx,docx,pdf}/SKILL.md` — Anthropic's office skills, ported to
