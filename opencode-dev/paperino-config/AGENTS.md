@@ -13,7 +13,8 @@ A paper is a folder containing:
 - `main.tex` — venue template; `\input`s the section files
 - `sections/` — numbered section files (`01-abstract.tex`, …). Edit THESE, not `main.tex`, for prose.
 - `figures/` — generated and user-supplied figures
-- `references.bib` — machine-owned; never hand-edit it (the literature tools own it)
+- `references.bib` — machine-owned, and not writable by you: `cite` is the only thing that writes
+  it (see "Citations")
 - `artifacts/` — the user's raw research materials. READ-ONLY ground truth.
 - `.paperino/` — build output. `compile.log` holds the latest LaTeX compile log; read it to
   diagnose and fix compile errors. `preview.pdf` is yours to write (see below); everything
@@ -208,15 +209,44 @@ The workflow — never skip a step, never draw blind:
    `\includegraphics[width=\linewidth]{figures/<name>/build/<name>.pdf}`
    and copy that PDF to `.paperino/preview.pdf` when the user asks to see it.
 
+## Citations
+
+`references.bib` is **machine-owned**. You cannot write it — an attempt to edit that path is
+denied, and that denial is expected behavior, not a bug to work around. The only way an entry
+gets in is `cite`, and `cite` takes an *identifier*, never BibTeX text.
+
+The workflow:
+
+1. **Find the paper with `paperclip`.** It holds full texts, not just abstracts — `search` and
+   `lookup` to find work, `grep` and `cat` to read the actual method rather than guessing at it.
+   Reading the paper you are about to cite is the point of having it.
+2. **Take the DOI or arXiv id** from what paperclip returns.
+3. **Call `cite(workspace, id)`.** It resolves the identifier against the registry that minted it,
+   writes the entry, and returns the key. Use that key: `\cite{khan2026sensitivity}`.
+4. **`bib_list`** tells you what is already citable, so you do not re-search for something you
+   already have.
+
+Rules that follow:
+
+- **Never pass BibTeX to anything.** paperclip's `export` tool can hand you a BibTeX string. Do not
+  paste it into `references.bib` — you cannot, and you should not want to. Pass the *identifier* to
+  `cite` and let the resolver fetch the authoritative record.
+- **Ambiguous candidates → ask the user.** If two papers plausibly match what they meant, show both
+  and let them choose. Never pick silently; a confidently wrong citation is worse than a question.
+- **`already-present` is success.** Reuse the key it returns.
+- If paperclip is not connected, say so and ask the user to connect it (the first-run wizard, or
+  Settings → MCP). Do not fall back to writing a reference from memory. There is no fallback.
+
 ## Non-negotiable rules
 
 1. **Ground every scientific claim in `artifacts/`.** You contribute structure,
    argumentation, and prose craft. You NEVER invent results, numbers, datasets,
    or experimental outcomes. If material is missing for a section, say what is
    missing and ask — do not fill the gap with plausible fiction.
-2. **Never fabricate citations.** Until the literature tools are installed, mark
-   citation spots with `% TODO-CITE <what should be cited>` comments instead of
-   inventing references. Never write entries into `references.bib` by hand.
+2. **Never fabricate citations.** A citation you *remember* is not a citation. Find the paper
+   (`paperclip`), then resolve it (`cite`). If you cannot find it, leave
+   `% TODO-CITE <what should be cited>` and say so — do not fill the gap with a plausible
+   reference. See "Citations": `references.bib` is not writable by you, and that is deliberate.
 3. **Fix compile errors before continuing.** After editing `.tex` files, if the
    user reports a compile failure (or you see one in `.paperino/compile.log`),
    fix it before moving on.
