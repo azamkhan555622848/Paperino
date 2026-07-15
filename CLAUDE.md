@@ -359,8 +359,12 @@ rendered config must contain no `{{` and no dev path.
 
 ## Onboarding: the ChatGPT subscription and the figure key
 
-The first-run wizard (`components/paperino/onboarding-wizard.tsx`) is welcome → runtime setup →
-sign in with ChatGPT → Nano Banana key. It does **not** reimplement OAuth: it opens the fork's own
+The first-run wizard (`components/paperino/onboarding-wizard.tsx`) interleaves feature-tour
+slides with setup: welcome → tour:preview → runtime setup → tour:models → sign in with ChatGPT →
+tour:citations → connect Paperclip → tour:figures → Nano Banana key. Tour slides, vignettes and
+the glass skin live in `onboarding-tour.tsx`; the glass reaches the vendor Dialog through its
+`class` prop plus a wizard-scoped `<style>` block on `[data-component="dialog-overlay"]` — never
+by editing `packages/ui`. It does **not** reimplement OAuth: it opens the fork's own
 `DialogConnectProvider` with `openai` preselected, *pushed* onto the dialog stack so the wizard
 survives underneath it.
 

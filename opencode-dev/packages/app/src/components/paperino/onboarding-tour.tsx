@@ -25,9 +25,11 @@ export function GlassStyle() {
         background: color-mix(in srgb, var(--background-base) 30%, transparent);
       }
 
-      /* The card: translucent theme surface + blur = glass in light AND dark. */
+      /* The card: translucent theme surface + blur = glass in light AND dark. 80% (not lower) so
+         copy stays legible when the wizard sits over a dense monospace region — the busiest
+         possible backdrop, where 72% softened light-theme text. Still translucent + blurred. */
       [data-slot="dialog-content"].paperino-onboarding-glass {
-        background: color-mix(in srgb, var(--background-strong) 72%, transparent);
+        background: color-mix(in srgb, var(--background-strong) 80%, transparent);
         backdrop-filter: blur(28px) saturate(140%);
         border: 1px solid color-mix(in srgb, var(--border-weak-base) 55%, transparent);
         border-radius: 16px;
