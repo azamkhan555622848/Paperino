@@ -33,6 +33,20 @@ test("dist bakes in no path from the machine that built it", () => {
   }
 })
 
+test("dist bakes in no TDM key", () => {
+  // A key in the bundle is one institution's entitlement shipped to every machine — the same
+  // failure class as the old X-API-Key in a config. Keys are read from auth.json at call time;
+  // only the ENV VAR NAMES and the auth-store key names may appear here.
+  const bundle = readFileSync(join(DIST, "server.mjs"), "utf8")
+  const auth = join(process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share"), "opencode", "auth.json")
+  if (!existsSync(auth)) return
+  const store = JSON.parse(readFileSync(auth, "utf8")) as Record<string, { key?: string } | undefined>
+  for (const name of ["tdm-springer", "tdm-elsevier", "tdm-wiley"]) {
+    const key = store[name]?.key
+    if (key && key.length > 8) expect(bundle).not.toInclude(key)
+  }
+})
+
 test(
   "dist server answers MCP initialize under plain node",
   async () => {
