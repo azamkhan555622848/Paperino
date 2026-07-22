@@ -151,6 +151,8 @@ export function compile(dir: string): Promise<CompileResult> {
 
 // Files whose changes should trigger a recompile
 const SOURCE_RE = /\.(tex|bib|yaml|png|jpe?g|pdf|svg)$/i
+// The full-text shelf: papers the ladder fetched or the user dropped. Reading material, not source.
+const SHELF_DIR = "papers"
 
 export type ChangeKind = "source" | "preview" | null
 
@@ -166,6 +168,10 @@ export function classifyChange(filename: string, output: () => string = () => OU
   const name = filename.replaceAll("\\", "/").replace(/^\.\//, "")
   if (name === PREVIEW_PATH) return "preview"
   if (name.startsWith(`${OUT_DIR}/`) || name === OUT_DIR) return null
+  // papers/ holds fetched full texts. They are PDFs, and a PDF is otherwise a source (Figure
+  // Studio emits figures as PDFs) — so without this the shelf would retrigger the compile on
+  // every fetch. Anchored at the top level: figures/papers/x.pdf is still a figure.
+  if (name.startsWith(`${SHELF_DIR}/`)) return null
   if (!SOURCE_RE.test(name)) return null
   // The paper's own PDF is compile OUTPUT, not source. Every other .pdf still is a source —
   // Figure Studio emits figures as PDFs — so without this line the copy compile() drops

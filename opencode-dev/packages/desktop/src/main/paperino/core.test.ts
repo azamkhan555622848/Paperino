@@ -96,6 +96,21 @@ describe("classifyChange", () => {
     expect(classifyChange("figures/fig-jspace/build/fig-jspace.pdf")).toBe("source")
   })
 
+  // papers/ is the full-text shelf: PDFs the ladder fetches or the user drops. A .pdf is
+  // otherwise a source (figures are PDFs), so without this rule every fetched paper would
+  // look like a manuscript edit and retrigger the compile forever.
+  test("fetched papers do not trigger a recompile", () => {
+    expect(classifyChange("papers/10.1038_s41586-021-03819-2.pdf")).toBe(null)
+    expect(classifyChange("papers\\someones-download.pdf")).toBe(null)
+    expect(classifyChange("papers/.index.json")).toBe(null)
+  })
+
+  // The guard is anchored at the top level, so a figure that happens to live under a
+  // directory named "papers" deeper in the tree is still a source.
+  test("the shelf guard is anchored, not a substring match", () => {
+    expect(classifyChange("figures/papers/method.pdf")).toBe("source")
+  })
+
   test("unrelated files are ignored", () => {
     expect(classifyChange("notes.md")).toBe(null)
     expect(classifyChange("src/main.py")).toBe(null)
