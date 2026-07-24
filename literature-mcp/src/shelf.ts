@@ -71,6 +71,18 @@ export function findOnShelf(workspace: string, ident: string): ShelfEntry | unde
     if (!existsSync(join(workspace, SHELF_DIR, file))) continue // indexed but deleted: re-fetch
     return { file, ...row }
   }
+
+  // No index row — but two paths put a PDF here without one: the institutional fetch window (it
+  // lives in the desktop package and cannot import this module, so it writes the file and nothing
+  // else) and a user dropping a download in by hand. The slug is derived from the ident, so the
+  // file's own name identifies it. Skipping this would ask the user to re-fetch a paper already on
+  // their shelf — the one thing the shelf rung exists to prevent.
+  const file = `${slugFor(key)}.pdf`
+  if (existsSync(join(workspace, SHELF_DIR, file))) {
+    // We did not fetch it and there is no record of which rendering it is. `unknown` is the honest
+    // answer; the agent is instructed not to assert a version it was never told.
+    return { file, ident: key, version: "unknown", addedBy: "manual-drop" }
+  }
   return undefined
 }
 

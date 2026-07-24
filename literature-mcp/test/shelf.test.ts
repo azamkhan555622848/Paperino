@@ -54,3 +54,28 @@ test("a manually dropped PDF lists as manual-drop / unknown", () => {
 test("listShelf on a workspace with no papers folder is empty, not an error", () => {
   expect(listShelf(ws())).toEqual([])
 })
+
+/**
+ * The institutional fetch window saves a PDF under the DOI slug and writes NO index row — it lives
+ * in the desktop package and cannot import this one. If findOnShelf only consulted the index, the
+ * paper the user just signed in and downloaded would be invisible to the ladder's first rung, and
+ * fulltext would ask them to fetch it all over again. The file itself is the record.
+ */
+test("findOnShelf sees a PDF saved under the ident's slug with no index row", () => {
+  const dir = ws()
+  mkdirSync(join(dir, "papers"))
+  writeFileSync(join(dir, "papers", "10.1038_s41586-021-03819-2.pdf"), "%PDF")
+
+  const found = findOnShelf(dir, "10.1038/s41586-021-03819-2")
+  expect(found?.file).toBe("10.1038_s41586-021-03819-2.pdf")
+  // We did not fetch it, so we do not know which rendering it is. Saying so is the honest answer.
+  expect(found?.version).toBe("unknown")
+  expect(found?.addedBy).toBe("manual-drop")
+})
+
+test("findOnShelf still returns undefined when neither the index nor the disk has the paper", () => {
+  const dir = ws()
+  mkdirSync(join(dir, "papers"))
+  writeFileSync(join(dir, "papers", "10.1038_other.pdf"), "%PDF")
+  expect(findOnShelf(dir, "10.1038/absent")).toBeUndefined()
+})

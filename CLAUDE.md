@@ -255,6 +255,13 @@ per-project `papers/` with a `.index.json` sidecar. Spec:
   agree or a PDF the fetch window saves is invisible to the shelf rung and gets fetched again. They
   live in different packages (desktop cannot import from `literature-mcp`), so this is a deliberate
   copy — change one, change both.
+- **Agreeing slugs are necessary but not sufficient**, and assuming otherwise shipped a bug. The
+  fetch window writes the PDF and *no* `.index.json` row — it cannot import the shelf module — so an
+  index-only `findOnShelf` missed precisely the paper the user had just signed in to download, and
+  the ladder asked them to fetch it a second time. `findOnShelf` therefore falls back to
+  `existsSync(papers/<slug>.pdf)` and reports the hit as `manual-drop` / `unknown`. Note the
+  consequence for the version vocabulary: `fulltext` *can* return `unknown`, but only by reading a
+  file a human put there — never as a label for something the ladder itself fetched.
 - **The MCP never opens the login window.** An MCP call must not block on a human, so the ladder
   leaves `.paperino/fetch-request.json` and the Electron main process — which already watches the
   workspace — prompts. A request older than an hour is ignored, so a stale file cannot pop a window
