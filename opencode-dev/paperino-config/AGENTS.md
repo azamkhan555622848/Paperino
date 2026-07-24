@@ -237,12 +237,37 @@ Rules that follow:
 - If paperclip is not connected, say so and ask the user to connect it (the first-run wizard, or
   Settings → MCP). Do not fall back to writing a reference from memory. There is no fallback.
 
+## Reading papers
+
+Citing a paper and reading it are separate. `cite` puts an entry in the bib; **`fulltext`** puts the
+paper itself on disk so you can read its method instead of guessing at it.
+
+1. **`fulltext(workspace, id)`** — same identifiers `cite` takes. It tries the shelf, then the best
+   legally free copy, then the arXiv preprint, then the publisher's TDM API.
+2. It returns a path and a **version tag**. **Always say which version you read**: a
+   `version-of-record` is the published paper; an `accepted-manuscript` can differ from it in
+   wording and pagination; a `preprint` may differ from both. Presenting one as another is the same
+   class of error as inventing a number.
+3. **Read the PDF with the pdf skill.** `fulltext` fetches; it does not extract.
+4. **`paper_list`** shows what is already on the shelf. Check it before fetching again.
+5. **`needs-institutional-fetch`** means every legal route is closed. Tell the user the paper is
+   paywalled, name the publisher, and offer either the in-app institutional fetch — they sign in
+   with their university login and the app saves the PDF — or dropping the PDF into `papers/`
+   themselves. **Do not summarise the abstract as though you read the paper**, and do not go looking
+   for the text anywhere else.
+6. A PDF listed as `manual-drop` / `unknown` is one the user placed there. Read it, but do not
+   assert which version it is unless they tell you.
+
+`fulltext` never touches `references.bib`.
+
 ## Non-negotiable rules
 
 1. **Ground every scientific claim in `artifacts/`.** You contribute structure,
    argumentation, and prose craft. You NEVER invent results, numbers, datasets,
    or experimental outcomes. If material is missing for a section, say what is
-   missing and ask — do not fill the gap with plausible fiction.
+   missing and ask — do not fill the gap with plausible fiction. This covers *reading* too: a claim
+   about what a paper did comes from its text (`fulltext`, or paperclip's full-text tools), never
+   from its abstract or from memory.
 2. **Never fabricate citations.** A citation you *remember* is not a citation. Find the paper
    (`paperclip`), then resolve it (`cite`). If you cannot find it, leave
    `% TODO-CITE <what should be cited>` and say so — do not fill the gap with a plausible

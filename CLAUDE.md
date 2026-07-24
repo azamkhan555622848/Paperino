@@ -233,6 +233,36 @@ figures-mcp (`scripts/build-dist.ts` → `dist/server.mjs`, run on the app's own
   bytes are copied verbatim, never reformatted. A citation manager that rewrites your file earns
   distrust.
 
+## Full-text access
+
+The rung Paperclip cannot reach: *closed* publisher text. `fulltext(id)` walks a ladder — shelf →
+Unpaywall → arXiv preprint → publisher TDM → `needs-institutional-fetch` — and drops PDFs into a
+per-project `papers/` with a `.index.json` sidecar. Spec:
+`2026-07-22-fulltext-access-design.md`.
+
+- **No pirate sources, ever.** The terminal state of the ladder is asking the user to fetch the
+  paper with their own login, not finding it elsewhere. This is not a tunable.
+- **TDM sits below the free rungs** — a metered, entitlement-limited call is not worth spending when
+  a legal free copy exists. It is also **dormant until keyed**: `tdmKey` returns undefined and the
+  rung is skipped, so the feature ships complete without anyone having registered with a publisher.
+- **The version tag is the point.** `oaVersion(undefined)` maps to `accepted-manuscript`, never
+  `version-of-record` — the agent repeats this tag to the user as a claim about what it read, and an
+  unearned "version of record" is the reading equivalent of an invented number.
+- **`classifyChange` must ignore `papers/`.** `SOURCE_RE` matches `.pdf` on purpose (Figure Studio
+  emits figure PDFs), so without that rule every fetched paper reads as a manuscript edit and
+  retriggers the compile forever — the same trap the emitted `main.pdf` set.
+- **`shelfPathFor` in `institutional.ts` duplicates `slugFor` in `shelf.ts`**, and the two must
+  agree or a PDF the fetch window saves is invisible to the shelf rung and gets fetched again. They
+  live in different packages (desktop cannot import from `literature-mcp`), so this is a deliberate
+  copy — change one, change both.
+- **The MCP never opens the login window.** An MCP call must not block on a human, so the ladder
+  leaves `.paperino/fetch-request.json` and the Electron main process — which already watches the
+  workspace — prompts. A request older than an hour is ignored, so a stale file cannot pop a window
+  the user has no context for.
+- **The institutional window is interactive by design.** One window, one paper, one explicit save, on
+  a `persist:institution` partition. Automating it over a list is what gets a university's IP range
+  blocked; the confirmation is a feature, not friction to optimise away.
+
 ## Office skills (xlsx / docx / pdf)
 
 `paperino-config/skill/{xlsx,docx,pdf}/SKILL.md` — Anthropic's office skills, ported to
