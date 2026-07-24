@@ -76,50 +76,58 @@ export function FulltextKeys(props: { writeKey: (provider: string, key: string) 
     setSaved((s) => ({ ...s, [provider.id]: true }))
   }
 
+  // The settings-v2 panel chrome lives here rather than in dialog-settings-v2.tsx: that file is
+  // upstream vendor code an opencode merge reverts, so the less of ours sits in it, the less we
+  // lose. It gets an import, a trigger and a content pane — nothing more.
   return (
-    <div class="flex flex-col gap-6">
-      <div class="text-14-regular text-text-weak">
-        Optional. If your institution subscribes, a text-and-data-mining key lets Paperino fetch the
-        published version of a closed paper directly. Without one it will ask you to sign in and save
-        the PDF yourself.
+    <>
+      <div class="settings-v2-tab-header">
+        <h2 class="settings-v2-tab-title">Full text</h2>
       </div>
+      <div class="settings-v2-tab-body flex flex-col gap-6">
+        <div class="text-14-regular text-text-weak">
+          Optional. If your institution subscribes, a text-and-data-mining key lets Paperino fetch
+          the published version of a closed paper directly. Without one it will ask you to sign in
+          and save the PDF yourself.
+        </div>
 
-      <For each={TDM_PROVIDERS}>
-        {(provider) => (
-          <form class="flex flex-col gap-2" onSubmit={(event) => void save(provider, event)}>
-            <TextField
-              name="apiKey"
-              type="password"
-              label={`${provider.label} TDM key`}
-              placeholder="Paste your key"
-              class="font-mono"
-              autocomplete="off"
-            />
+        <For each={TDM_PROVIDERS}>
+          {(provider) => (
+            <form class="flex flex-col gap-2" onSubmit={(event) => void save(provider, event)}>
+              <TextField
+                name="apiKey"
+                type="password"
+                label={`${provider.label} TDM key`}
+                placeholder="Paste your key"
+                class="font-mono"
+                autocomplete="off"
+              />
 
-            <div class="text-12-regular text-text-weak">
-              {provider.hint} <Link href={provider.url}>Request a key</Link>
-            </div>
-
-            <Show when={error()[provider.id]}>
-              {(message) => <div class="text-12-regular text-text-danger">{message()}</div>}
-            </Show>
-
-            <Show when={saved()[provider.id]}>
-              <div class="flex items-center gap-2 text-12-regular text-text-weak">
-                <Icon name="check" /> Saved. Pasting a new key replaces it.
+              <div class="text-12-regular text-text-weak">
+                {provider.hint} <Link href={provider.url}>Request a key</Link>
               </div>
-            </Show>
 
-            <div>
-              <Button type="submit" variant="secondary" disabled={saving() === provider.id}>
-                <Show when={saving() === provider.id} fallback="Save key">
-                  <Spinner />
-                </Show>
-              </Button>
-            </div>
-          </form>
-        )}
-      </For>
-    </div>
+              <Show when={error()[provider.id]}>
+                {(message) => <div class="text-12-regular text-text-danger">{message()}</div>}
+              </Show>
+
+              <Show when={saved()[provider.id]}>
+                <div class="flex items-center gap-2 text-12-regular text-text-weak">
+                  <Icon name="check" /> Saved. Pasting a new key replaces it.
+                </div>
+              </Show>
+
+              <div>
+                <Button type="submit" variant="secondary" disabled={saving() === provider.id}>
+                  <Show when={saving() === provider.id} fallback="Save key">
+                    <Spinner />
+                  </Show>
+                </Button>
+              </div>
+            </form>
+          )}
+        </For>
+      </div>
+    </>
   )
 }
