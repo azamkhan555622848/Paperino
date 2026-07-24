@@ -7,6 +7,7 @@ import type { WebContents } from "electron"
 import { OUT_DIR, PREVIEW_FILE, compile, isPaperWorkspace, watchWorkspace } from "./core"
 import type { CompileError } from "./core"
 import { listWorkspaceFiles, readWorkspaceFile } from "./files"
+import { clearFetchRequest, openInstitutionalFetch, readFetchRequest } from "./institutional"
 import { completeOnboarding, onboardingStatus } from "./onboarding"
 import { runSetup, setupStatus } from "./setup"
 import type { SetupComponent, SetupProgress } from "./setup"
@@ -104,6 +105,21 @@ export function registerPaperinoIpc() {
   ipcMain.handle("paperino-list-files", (_event, dir: string) => listWorkspaceFiles(dir))
 
   ipcMain.handle("paperino-read-file", (_event, dir: string, relPath: string) => readWorkspaceFile(dir, relPath))
+
+  // Is there a paper the agent could not reach, waiting on the user's library login? The MCP
+  // leaves the request in .paperino/; an MCP call cannot block on a human, so the app asks.
+  ipcMain.handle("paperino-fetch-request", (_event, dir: string) => readFetchRequest(dir) ?? null)
+
+  // Open the publisher's page for the user to sign in and save the PDF. Explicitly user-initiated:
+  // the renderer calls this from a click, never on a timer, because an automated loop over paywalled
+  // DOIs is precisely what publishers ban and what gets an institution blocked.
+  ipcMain.handle("paperino-institutional-fetch", async (_event, dir: string) => {
+    const request = readFetchRequest(dir)
+    if (!request) return false
+    const saved = await openInstitutionalFetch(dir, request)
+    if (!saved) clearFetchRequest(dir)
+    return saved
+  })
 
   // The first-run wizard: welcome → runtime setup → sign in with ChatGPT → figure key. The
   // renderer asks whether to show it; `packaged` tells it whether the runtime-setup step is

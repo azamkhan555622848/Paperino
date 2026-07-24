@@ -53,6 +53,9 @@ export type PaperinoReadFileResult =
   | { ok: true; bytes: Uint8Array }
   | { ok: false; error: "invalid-path" | "not-found" | "too-large" }
 
+/** A paper the full-text ladder could not reach for free, waiting on the user's library login. */
+export type PaperinoFetchRequest = { doi: string; url: string; publisher: string; requestedAt: string }
+
 export type PaperinoSetupComponent = "chromium" | "python"
 export type PaperinoSetupProgress = { component: PaperinoSetupComponent; phase: string; percent?: number }
 
@@ -74,6 +77,13 @@ export type PaperinoAPI = {
   setupStatus: () => Promise<Record<PaperinoSetupComponent, { installed: boolean }>>
   setupRun: (component: PaperinoSetupComponent) => Promise<{ ok: true } | { ok: false; error: string }>
   onSetupProgress: (cb: (progress: PaperinoSetupProgress) => void) => () => void
+  /**
+   * The full-text ladder's last rung. `fetchRequest` reports a paper the agent could not reach
+   * legally for free; `institutionalFetch` opens the publisher's page for the user to sign in with
+   * their own library login and save the PDF. One paper per click — never looped over a list.
+   */
+  fetchRequest: (dir: string) => Promise<PaperinoFetchRequest | null>
+  institutionalFetch: (dir: string) => Promise<boolean>
 }
 
 export type ElectronAPI = {

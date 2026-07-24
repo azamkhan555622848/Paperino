@@ -31,6 +31,8 @@ const api: ElectronAPI = {
       ipcRenderer.on("paperino-setup-progress", handler)
       return () => ipcRenderer.removeListener("paperino-setup-progress", handler)
     },
+    fetchRequest: (dir) => ipcRenderer.invoke("paperino-fetch-request", dir),
+    institutionalFetch: (dir) => ipcRenderer.invoke("paperino-institutional-fetch", dir),
   },
   killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
   installCli: () => ipcRenderer.invoke("install-cli"),
