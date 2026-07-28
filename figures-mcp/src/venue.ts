@@ -15,9 +15,24 @@ export type Venue = {
    */
   textFace: string
   mathFontset: "cm" | "stix"
+  /**
+   * Font families the math fontset actually emits, as allowlist prefixes.
+   *
+   * Math is NOT set in the body face — matplotlib typesets it in the fontset's own faces,
+   * so a Times figure reports STIXGeneral on every symbol and a Computer Modern one
+   * reports cmmi10/cmsy10. That is correct typography (STIX is the Times-metric math
+   * companion), but rule 13 rejects it unless the venue declares it. The HTML engine never
+   * hits this only because KaTeX happens to NAME its math faces KaTeX_*.
+   */
+  mathFaces: string[]
   inches: { narrow: number; full: number }
   px: { narrow: number; full: number }
 }
+
+const MATH_FACES = {
+  stix: ["STIX"],
+  cm: ["cmr", "cmmi", "cmsy", "cmex", "cmb", "cmss", "cmtt"],
+} as const
 
 // Print-true widths per venue: single column / full text width, in inches.
 // 96dpi is Chromium's CSS-px-per-inch, which is what makes \includegraphics land ~1:1.
@@ -59,6 +74,7 @@ export function resolveVenue(workspace: string): Venue {
     id,
     textFace: v.textFace,
     mathFontset: v.mathFontset,
+    mathFaces: [...MATH_FACES[v.mathFontset]],
     inches: { narrow: v.narrow, full: v.full },
     px: { narrow: Math.round(v.narrow * DPI), full: Math.round(v.full * DPI) },
   }

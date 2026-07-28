@@ -68,13 +68,16 @@ plt.rcParams.update(
         "xtick.labelsize": 8,
         "ytick.labelsize": 8,
         "legend.fontsize": 8,
-        # Strokes: the SVG's user unit is a point, which Chromium maps to 1.333 CSS px, so
-        # 0.7pt lands at 0.93px -- above lint rule 6's 0.75px floor. Do not go below 0.6.
-        "axes.linewidth": 0.7,
-        "xtick.major.width": 0.7,
-        "ytick.major.width": 0.7,
-        "xtick.minor.width": 0.5,
-        "ytick.minor.width": 0.5,
+        # Strokes: lint rule 6 floors every stroke at 0.75px, and matplotlib's linewidths
+        # reach it ONE-TO-ONE. getComputedStyle().strokeWidth reports the SVG user-unit
+        # value without applying the viewBox scale, so a 0.7 linewidth measures as 0.7px
+        # and fails -- there is no 1.333 pt-to-px conversion to hide behind. Nothing here
+        # may go below 0.8; a hairline thinner than that also drops out on real paper.
+        "axes.linewidth": 0.8,
+        "xtick.major.width": 0.8,
+        "ytick.major.width": 0.8,
+        "xtick.minor.width": 0.8,
+        "ytick.minor.width": 0.8,
         "lines.linewidth": 1.3,
         "lines.markersize": 4.0,
         # Warm first: it is the more salient of the two accents, and a one-series figure
@@ -83,8 +86,10 @@ plt.rcParams.update(
         "axes.grid": True,
         "axes.grid.axis": "y",
         "grid.color": GRID,
-        "grid.linewidth": 0.5,
-        "grid.alpha": 0.6,
+        # 0.8 for the same reason as the axis strokes; alpha keeps it visually a hairline
+        # without putting the measured width under the floor.
+        "grid.linewidth": 0.8,
+        "grid.alpha": 0.5,
         # Paper idiom: two rules, not a box.
         "axes.spines.top": False,
         "axes.spines.right": False,
@@ -97,6 +102,9 @@ plt.rcParams.update(
         "figure.facecolor": "white",
         "savefig.facecolor": "white",
         "legend.frameon": False,
+        # Bar and marker edges are strokes too, and the default 1.0 is fine — but an
+        # explicit floor keeps a future edgecolor tweak from sliding under rule 6.
+        "patch.linewidth": 0.8,
     }
 )
 

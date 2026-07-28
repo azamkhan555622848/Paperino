@@ -20,6 +20,13 @@ export type LintInput = {
   /** Families a text node may be set in. Venue-derived when the server calls it, so a Times
    *  paper and a Computer Modern paper each accept exactly their own face. */
   allowedFaces?: string[]
+  /**
+   * Families the math engine typesets in (STIX under Times venues, Computer Modern under
+   * `article`). Text set in one of these IS a formula, and gets the same three exemptions
+   * KaTeX output already has — script sizes below the 7pt floor, self-overlapping glyph
+   * boxes, and digits that are notation rather than data.
+   */
+  mathFaces?: string[]
   manifest: {
     viewport: { width: number; height: number }
     texts: TextBox[]
@@ -92,6 +99,13 @@ const traces = (rendered: number, values: number[]) =>
 export function lint(input: LintInput): LintError[] {
   const errors: LintError[] = []
   const { texts, strokes, viewport } = input.manifest
+  // "Inside a formula", whichever engine drew it. The HTML engine says so with a .katex
+  // ancestor; matplotlib says so by setting the glyphs in the math fontset's own faces.
+  // Both mean the same thing: a math typesetter chose this size and position, not the
+  // author, so the rules written for authored text do not apply.
+  const firstFace = (t: TextBox) => t.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "")
+  const inMath = (t: TextBox) =>
+    t.inKatex || (input.mathFaces ?? []).some((face) => firstFace(t).startsWith(face))
   const err = (rule: string, selector: string, actual: string, expected: string) =>
     errors.push({ rule, selector, actual, expected })
 
@@ -101,7 +115,7 @@ export function lint(input: LintInput): LintError[] {
       // KaTeX absolutely positions glyph boxes, so a formula's own spans routinely
       // intersect. That is its layout engine's business — pairwise overlap inside a
       // formula would be a false-positive storm. Formula-vs-outside still counts.
-      if (texts[i].inKatex && texts[j].inKatex) continue
+      if (inMath(texts[i]) && inMath(texts[j])) continue
       const a = texts[i].rect
       const b = texts[j].rect
       const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) - 2
@@ -127,13 +141,25 @@ export function lint(input: LintInput): LintError[] {
       )
   }
 
-  // 3 min-type-size: a 7pt floor at the 96dpi print mapping — a print guarantee, not an
-  // arbitrary screen number. KaTeX internals are exempt: LaTeX itself sets scripts at
-  // 7/5pt in a 10pt body, so a blanket floor would fail every superscript.
+  // 3 min-type-size: a 7pt floor — a print guarantee, not an arbitrary screen number.
+  //
+  // The px-to-pt factor depends on the engine, because the two measure in different units.
+  // An HTML figure is laid out in CSS px at Chromium's 96dpi, so 1px = 0.75pt. A matplotlib
+  // SVG's user unit is a POINT (72/in), and the backend writes the point value straight
+  // into font-size, so `font-size: 9px` there really is 9pt. Applying 0.75 to it reported
+  // genuine 9pt labels as 6.75pt and failed every one of them.
+  //
+  // KaTeX internals are exempt either way: LaTeX itself sets scripts at 7/5pt in a 10pt
+  // body, so a blanket floor would fail every superscript.
+  const ptPerUnit = input.meta.engine === "mpl" ? 1 : 0.75
+  // Rounded UP: 7/0.75 is 9.333…, and 9.33px is 6.9975pt, so quoting 9.33 as the floor
+  // would name a size that does not actually clear it.
+  const floorUnits = Math.ceil((7 / ptPerUnit) * 100) / 100
   for (const t of texts) {
-    if (t.inKatex) continue
-    const pt = t.fontSize * 0.75
-    if (pt < 7 - 0.01) err("min-type-size", t.selector, `${t.fontSize}px (${pt.toFixed(2)}pt)`, ">= 7pt (9.34px)")
+    if (inMath(t)) continue
+    const pt = t.fontSize * ptPerUnit
+    if (pt < 7 - 0.01)
+      err("min-type-size", t.selector, `${t.fontSize}px (${pt.toFixed(2)}pt)`, `>= 7pt (${floorUnits.toFixed(2)}px)`)
   }
 
   // 4 contrast
@@ -168,9 +194,9 @@ export function lint(input: LintInput): LintError[] {
   const labels = new Set(flattenStrings(input.data))
   for (const t of texts) {
     if (t.derived) continue
-    // Digits inside a formula are notation, not data: the 2 in σ² is an exponent, not
-    // a cell. Provenance governs rendered VALUES.
-    if (t.inKatex) continue
+    // Digits inside a formula are notation, not data: the 2 in σ² is an exponent, and the
+    // 4 in b=4 is a subscript naming a condition. Provenance governs rendered VALUES.
+    if (inMath(t)) continue
     // a cell copied verbatim from a string in data (e.g. the step label "5C") is sourced
     if (labels.has(t.text)) continue
     const normalized = t.text.replace(/(?<=\d),(?=\d)/g, "") // 14,617 -> 14617

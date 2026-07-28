@@ -64,7 +64,11 @@ try {
     writeFileSync(
       join(buildDir, `${name}.wrap.html`),
       `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="../../tokens.css">` +
-        `<style>html,body{margin:0;padding:0;background:#fff}svg{display:block;max-width:100%;height:auto}</style>` +
+        // A little padding, because matplotlib tight-boxes the INK while a glyph's client
+        // rect includes its ascent — a title flush against the top reports 2px above the
+        // origin and trips the overflow rule. This shifts measurement only: the artifacts
+        // LaTeX and the review see are matplotlib's own, written before the page loaded.
+        `<style>html,body{margin:0;padding:4px;background:#fff}svg{display:block;max-width:100%;height:auto}</style>` +
         `<body>${svgMarkup}</body>`,
     )
     await page.goto(`${origin}/${name}/build/${name}.wrap.html`)
@@ -152,7 +156,18 @@ try {
           derived:
             el.closest("[data-derived]") !== null || el.closest('g[id^="xtick"], g[id^="ytick"]') !== null,
           fontFamily: cs.fontFamily,
-          inKatex: el.closest(".katex") !== null,
+          // "Typeset by a math engine, not by the author" — the flag is named for KaTeX
+          // because that came first, but matplotlib's mathtext earns the same exemptions.
+          //
+          // A face test cannot detect it: with fontset=stix, matplotlib takes symbols from
+          // STIX but upright glyphs inside a formula from the BODY face, so a superscript
+          // reads as "TeX Gyre Termes" exactly like a plain label. The structural tell is
+          // that mathtext lays out every glyph as a <tspan> with explicit x AND y, the same
+          // absolute glyph positioning KaTeX does. Ordinary matplotlib labels are bare
+          // <text> nodes with no tspans at all.
+          inKatex:
+            el.closest(".katex") !== null ||
+            (el.tagName === "tspan" && el.hasAttribute("x") && el.hasAttribute("y")),
         })
       }
     }
@@ -194,10 +209,23 @@ try {
     if (overlay) overlay.style.height = `${h}px`
   }, contentHeight)
 
+  // The mpl engine already wrote both artifacts, and they are BETTER than anything the
+  // browser can produce here: matplotlib's PDF is vector with Type-42 embedded fonts, which
+  // is exactly what \includegraphics wants and the only reason pdf.fonttype is pinned, and
+  // its PNG is 600dpi against a ~3x screenshot. Overwriting them with a browser re-render
+  // silently threw both away — the page exists to MEASURE the figure, not to redraw it.
   const png = join(buildDir, `${name}.png`)
-  await page.screenshot({ path: png, fullPage: true })
   const pdf = join(buildDir, `${name}.pdf`)
-  await page.pdf({ path: pdf, width: `${width}px`, height: `${contentHeight}px`, printBackground: true, pageRanges: "1" })
+  if (engine !== "mpl") {
+    await page.screenshot({ path: png, fullPage: true })
+    await page.pdf({
+      path: pdf,
+      width: `${width}px`,
+      height: `${contentHeight}px`,
+      printBackground: true,
+      pageRanges: "1",
+    })
+  }
 
   // The mpl engine already wrote a real SVG — that IS the figure, and it is what lint just
   // measured. The HTML engine can only offer its annotation overlay, best-effort.

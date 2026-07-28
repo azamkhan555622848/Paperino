@@ -106,7 +106,8 @@ server.registerTool(
       source: readFileSync(join(dir, engine === "mpl" ? "figure.py" : "figure.html"), "utf8"),
       meta: { ...meta, engine },
       data: JSON.parse(readFileSync(join(dir, "data.json"), "utf8")),
-      allowedFaces: ["KaTeX_", venue.textFace],
+      allowedFaces: ["KaTeX_", venue.textFace, ...venue.mathFaces],
+      mathFaces: venue.mathFaces,
       manifest: JSON.parse(readFileSync(bboxPath, "utf8")),
     })
     const result = { passed: errors.length === 0, errors }
@@ -139,16 +140,24 @@ server.registerTool(
       "- Would a reviewer notice this was NOT made with TikZ/pgfplots? A web-app look (rounded cards, pill badges, UI fonts, drop shadows) = reject.",
       "- Any pseudo-math (sigma_ch, x^2 as plain text)? Every symbol must be typeset in a .math span.",
       "- Minimal in-figure prose: the caption explains, the figure shows. No headline inside the figure; panels are (a), (b).",
+      "- Is this the RIGHT ENGINE? A plot drawn as boxes, or a diagram forced onto axes, is a " +
+        "wrong-engine failure: say so and re-scaffold on the other engine rather than patching this one.",
       "- Is the element the caption is about the most salient thing?",
       "- Is anything encoded twice (color + position for the same variable)?",
       "- Would it survive at 50% scale? In grayscale?",
       "If issues remain, patch figure.html by selector and rerun figure_render + figure_lint. Max 4 iterations, then stop and surface to the user.",
     ].join("\n")
+    // Exemplars are the bar the model steers toward, so they must match the engine. Showing
+    // a matplotlib chart the four-bar div exemplar would steer it back into exactly the
+    // ceiling this engine exists to escape.
+    const exemplars =
+      meta.engine === "mpl"
+        ? ["exemplar-chart-mpl.png", "exemplar-schematic.png"]
+        : ["exemplar-schematic.png", "exemplar-chart.png"]
     return {
       content: [
         image(join(dir, "build", `${a.name}.png`)),
-        image(join(EXEMPLARS, "exemplar-schematic.png")),
-        image(join(EXEMPLARS, "exemplar-chart.png")),
+        ...exemplars.map((file) => image(join(EXEMPLARS, file))),
         { type: "text" as const, text: rubric },
       ],
     }

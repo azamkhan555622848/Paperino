@@ -6,11 +6,14 @@
 //   bun test/author-exemplars.ts
 //
 // (Not a test — it regenerates committed assets. Look at the PNGs before committing.)
-import { cpSync, mkdtempSync, writeFileSync } from "node:fs"
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { parse as parseYaml } from "yaml"
 import { scaffold } from "../src/scaffold"
 import { render } from "../src/render"
+import { lint } from "../src/lint"
+import { resolveVenue } from "../src/venue"
 
 const ws = mkdtempSync(join(tmpdir(), "fig-exemplars-"))
 const EXEMPLARS = join(import.meta.dir, "..", "src", "assets", "exemplars")
@@ -155,13 +158,120 @@ writeFileSync(
 `,
 )
 
+// ---- exemplar 3: chart on the mpl engine — the bar for anything quantitative ----
+//
+// This exists because figure_review hands the model exemplars as "the bar". Reviewing a
+// matplotlib chart against exemplar-chart.png — four bars, one linear axis, no legend —
+// would steer it backwards into the very ceiling this engine was added to escape. So the
+// exemplar deliberately exercises what the HTML engine has no primitive for: a log axis,
+// a percentile band, two marker series, a reference line, an annotation and two panels.
+//
+// Every number rendered as ink is in data.json. That is not decoration: rule 8 fails the
+// figure otherwise, and an exemplar that could not pass its own lint would be incoherent.
+await scaffold(ws, {
+  name: "ex-chart-mpl",
+  archetype: "chart",
+  engine: "mpl",
+  claim: "Key error exceeds value error by 1-2 orders of magnitude, and layer 0 is a 10x outlier.",
+  caption: "Quantization error against bit-width, and per-layer key error at four bits.",
+  width: "full",
+})
+writeFileSync(
+  join(ws, "figures", "ex-chart-mpl", "data.json"),
+  JSON.stringify(
+    {
+      bits: [2, 3, 4, 6, 8],
+      keys_median: [1.0, 0.25, 0.0625, 0.00390625, 0.000244140625],
+      keys_lo: [0.6, 0.15, 0.0375, 0.00234375, 0.00014648],
+      keys_hi: [1.85, 0.4625, 0.115625, 0.00722656, 0.00045166],
+      values_median: [0.02857143, 0.00714286, 0.00178571, 0.00011161, 0.00000698],
+      layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      layer_error: [0.625, 0.068, 0.058, 0.049, 0.055, 0.047, 0.062, 0.081, 0.053, 0.05, 0.072, 0.066],
+      median_layer: 0.0625,
+      outlier_ratio: 10,
+      layer_axis_floor: 0.02,
+      layer_axis_ceiling: 2.0,
+    },
+    null,
+    1,
+  ),
+)
+writeFileSync(
+  join(ws, "figures", "ex-chart-mpl", "figure.py"),
+  `from matplotlib.ticker import NullFormatter
+
+from paperino_mpl import ACCENT, ACCENT_WARM, INK, MUTED, data, figure, save
+
+d = data()
+fig, (a, b) = figure("full", panels=2, ratios=[1, 1.25])
+
+# (a) median-layer error against bit-width, with the layer spread as a band.
+a.fill_between(d["bits"], d["keys_lo"], d["keys_hi"], color=ACCENT_WARM, alpha=0.15, linewidth=0)
+a.plot(d["bits"], d["keys_median"], marker="o", color=ACCENT_WARM, label=r"$\\sigma_K^{(\\ell)}(b)$  keys")
+a.plot(d["bits"], d["values_median"], marker="s", color=ACCENT, label=r"$\\sigma_V^{(\\ell)}(b)$  values")
+a.set_yscale("log")
+a.set_xticks(d["bits"])
+a.set_xlabel(r"Bit-width $b$")
+a.set_ylabel(r"Quantization error  (MSE)")
+a.set_title("(a) Median layer", loc="left", fontweight="bold")
+a.legend()
+
+# (b) per-layer key error at four bits; layer 0 carries the outlier.
+colors = [ACCENT_WARM if i == 0 else MUTED for i in d["layers"]]
+b.bar(d["layers"], d["layer_error"], width=0.72, color=colors)
+b.axhline(d["median_layer"], color=INK, linewidth=0.8, linestyle="--")
+b.set_yscale("log")
+# A log axis spanning barely one decade makes matplotlib label the MINOR ticks, and the
+# axis comes out reading 6x10^-1, 4x10^-1, 3x10^-1, 2x10^-1 -- unreadable, and the same
+# class of failure as an unlabelled top gridline. Pin the limits so whole decades appear
+# and silence the minor labels.
+b.set_ylim(d["layer_axis_floor"], d["layer_axis_ceiling"])
+b.yaxis.set_minor_formatter(NullFormatter())
+b.set_xticks(d["layers"][::2])
+b.set_xlabel(r"Layer index $\\ell$")
+b.set_ylabel(r"$\\sigma_K^{(\\ell)}(b{=}4)$")
+b.set_title("(b) Per-layer key error", loc="left", fontweight="bold")
+b.text(
+    len(d["layers"]) - 1, d["median_layer"] * 1.12, "median layer", color=MUTED, ha="right", va="bottom", fontsize=7.5
+)
+# Anchored inside the axes so it cannot collide with the panel title above it.
+b.annotate(
+    f"layer 0: {d['outlier_ratio']}x median",
+    xy=(0.45, d["layer_error"][0]),
+    xytext=(3.0, d["layer_error"][0] * 0.62),
+    color=INK,
+    arrowprops=dict(arrowstyle="-|>", color=INK, linewidth=0.8, connectionstyle="arc3,rad=-0.25"),
+    va="center",
+)
+
+save(fig)
+`,
+)
+
 for (const [name, out] of [
   ["ex-schematic", "exemplar-schematic.png"],
   ["ex-chart", "exemplar-chart.png"],
+  ["ex-chart-mpl", "exemplar-chart-mpl.png"],
 ] as const) {
   const result = await render(ws, name)
   if (!result.ok) throw new Error(`${name} render failed: ${result.error}\n${result.consoleOutput.join("\n")}`)
+
+  // An exemplar that cannot pass the rules it exemplifies is incoherent — and it would be
+  // shipped as the bar every future figure is steered toward. Fail loudly instead.
+  const dir = join(ws, "figures", name)
+  const meta = parseYaml(readFileSync(join(dir, "meta.yaml"), "utf8"))
+  const engine: "html" | "mpl" = meta.engine === "mpl" ? "mpl" : "html"
+  const errors = lint({
+    source: readFileSync(join(dir, engine === "mpl" ? "figure.py" : "figure.html"), "utf8"),
+    meta: { ...meta, engine },
+    data: JSON.parse(readFileSync(join(dir, "data.json"), "utf8")),
+    allowedFaces: ["KaTeX_", resolveVenue(ws).textFace, ...resolveVenue(ws).mathFaces],
+    mathFaces: resolveVenue(ws).mathFaces,
+    manifest: JSON.parse(readFileSync(join(dir, "build", "bboxes.json"), "utf8")),
+  })
+  if (errors.length) throw new Error(`${name} FAILED ITS OWN LINT:\n${JSON.stringify(errors, null, 1)}`)
+
   cpSync(result.png, join(EXEMPLARS, out))
-  console.log(`wrote ${out}`)
+  console.log(`wrote ${out} (lint clean)`)
 }
 console.log("done — LOOK at both PNGs before committing; they are the bar the review loop steers toward")
