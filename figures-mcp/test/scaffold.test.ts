@@ -11,6 +11,33 @@ beforeEach(() => {
   mkdirSync(WS, { recursive: true })
 })
 
+test("engine=mpl scaffolds figure.py, not figure.html, and vendors the style module", async () => {
+  await scaffold(WS, { name: "c1", archetype: "chart", engine: "mpl", claim: "c", caption: "c", width: "full" })
+  const dir = join(WS, "figures", "c1")
+  expect(existsSync(join(dir, "figure.py"))).toBe(true)
+  expect(existsSync(join(dir, "figure.html"))).toBe(false)
+  expect(parse(readFileSync(join(dir, "meta.yaml"), "utf8")).engine).toBe("mpl")
+  // Vendored per workspace like tokens.css, so figure.py can import it by bare name.
+  expect(existsSync(join(WS, "figures", "paperino_mpl.py"))).toBe(true)
+})
+
+test("the default engine stays html, so existing behaviour is unchanged", async () => {
+  await scaffold(WS, { name: "s1", archetype: "schematic", claim: "c", caption: "c", width: "full" })
+  expect(existsSync(join(WS, "figures", "s1", "figure.html"))).toBe(true)
+  expect(existsSync(join(WS, "figures", "s1", "figure.py"))).toBe(false)
+  expect(parse(readFileSync(join(WS, "figures", "s1", "meta.yaml"), "utf8")).engine).toBe("html")
+})
+
+test("the vendored style module refreshes when its version marker moves", async () => {
+  await scaffold(WS, { name: "c1", archetype: "chart", engine: "mpl", claim: "c", caption: "c", width: "full" })
+  const vendored = join(WS, "figures", "paperino_mpl.py")
+  writeFileSync(vendored, "# paperino-mpl v0.1\nSTALE = True\n")
+  await scaffold(WS, { name: "c2", archetype: "chart", engine: "mpl", claim: "c", caption: "c", width: "full" })
+  const refreshed = readFileSync(vendored, "utf8")
+  expect(refreshed).not.toContain("STALE")
+  expect(refreshed.split("\n", 1)[0]).toBe("# paperino-mpl v3.0")
+})
+
 test("tokens.css is stamped with the workspace's venue face", async () => {
   writeFileSync(join(WS, "paperino.yaml"), "venue: ieee\n")
   await scaffold(WS, { name: "f1", archetype: "chart", claim: "c", caption: "c", width: "full" })

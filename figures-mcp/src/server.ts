@@ -28,11 +28,25 @@ server.registerTool(
   "figure_scaffold",
   {
     description:
-      "Create a new figure from an archetype template (schematic|gallery|chart|table). Write the claim — the one sentence the figure must demonstrate — BEFORE designing. Vendors tokens.css + lib/ into the workspace on first use.",
+      "Create a new figure from an archetype template (schematic|gallery|chart|table) on the engine YOU pick (html|mpl — see the engine field; plots need mpl). Write the claim — the one sentence the figure must demonstrate — BEFORE designing. Vendors tokens.css + lib/ + fonts/ into the workspace on first use.",
     inputSchema: {
       workspace: ws,
       name: figName,
       archetype: z.enum(["schematic", "gallery", "chart", "table"]),
+      engine: z
+        .enum(["html", "mpl"])
+        .default("html")
+        .describe(
+          "Which renderer authors this figure. YOU choose, per figure — there is no auto-detection.\n" +
+            "  mpl  — anything QUANTITATIVE: axes, log scales, series, distributions, error bands, " +
+            "reference lines, multi-panel comparisons, anything with a scale. You author figure.py " +
+            "and have all of matplotlib. The html engine has two linear scales and no log, band, " +
+            "marker, legend or panel primitive, so it CANNOT draw these — do not try.\n" +
+            "  html — DIAGRAMS and structure: schematics, pipelines, free-form boxes and arrows, " +
+            "rich inline math, annotated galleries, tables. You author figure.html with CSS layout " +
+            "and the SVG annotation overlay, which matplotlib is poor at.\n" +
+            "Both are linted by the same 13 rules, provenance included. If the figure is a plot, pick mpl.",
+        ),
       claim: z.string().min(1),
       caption: z.string().min(1),
       width: z
@@ -46,7 +60,12 @@ server.registerTool(
   async (a) => {
     const { figureDir } = await scaffold(a.workspace, a)
     return text(
-      `scaffolded ${figureDir}. Edit figure.html (layout=HTML/flex/grid, annotations=lib/annot.js, colors=var(--…) only), put numbers in data.json, then figure_render.`,
+      a.engine === "mpl"
+        ? `scaffolded ${figureDir}. Edit figure.py: numbers come from data(), colors from the module ` +
+          `(ACCENT, ACCENT_WARM, MUTED, GRID, INK), and you never set an rcParam or call savefig — ` +
+          `figure() and save() own the print-true size and the SVG/PDF font modes. Put numbers in ` +
+          `data.json, then figure_render.`
+        : `scaffolded ${figureDir}. Edit figure.html (layout=HTML/flex/grid, annotations=lib/annot.js, colors=var(--…) only), put numbers in data.json, then figure_render.`,
     )
   },
 )

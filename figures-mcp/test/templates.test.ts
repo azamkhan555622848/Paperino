@@ -1,4 +1,23 @@
 import { expect, test } from "bun:test"
+
+test("the mpl template uses only the module's sanctioned surface", () => {
+  const py = readFileSync(join(import.meta.dir, "..", "src", "templates", "chart-mpl", "figure.py"), "utf8")
+  expect(py).toContain("from paperino_mpl import")
+  // Prose is stripped first: the template's own docstring names these on purpose, to warn
+  // against them. What must not appear is a call in CODE.
+  const code = py
+    .replace(/^"""[\s\S]*?"""/, "")
+    .split("\n")
+    .map((line) => line.replace(/#.*$/, ""))
+    .join("\n")
+  // Each fails silently if an author reaches past the module: an rcParams override can undo
+  // svg.fonttype, and a direct savefig skips the print-true size entirely.
+  expect(code).not.toMatch(/rcParams/)
+  expect(code).not.toMatch(/savefig/)
+  // A raw hex here is lint rule 5.
+  expect(code).not.toMatch(/#[0-9a-fA-F]{6}\b/)
+})
+
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
