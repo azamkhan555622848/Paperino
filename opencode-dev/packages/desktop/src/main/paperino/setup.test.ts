@@ -22,6 +22,72 @@ test("setupStatus reports installed only when markers exist", () => {
   expect(setupStatus(c.userData).chromium.installed).toBe(true)
 })
 
+/** Lay down the two requirement files setupStatus hashes into the python marker's stamp. */
+const writeRequirements = (resources: string, lock: string) => {
+  mkdirSync(join(resources, "paperbanana"), { recursive: true })
+  mkdirSync(join(resources, "paperino-config", "skill"), { recursive: true })
+  writeFileSync(join(resources, "paperbanana", "requirements.lock"), lock)
+  writeFileSync(join(resources, "paperino-config", "skill", "requirements.txt"), "openpyxl==3.1.5\n")
+}
+
+test("adding a package to a lockfile re-runs the python step on an existing install", async () => {
+  // The bug this pins: the marker used to be a bare existence check, so a new pin could
+  // never reach anyone who had already run setup — pip never re-ran and the feature that
+  // needed the package reported itself unavailable forever.
+  const tmp = mkdtempSync(join(tmpdir(), "setup-"))
+  const c = ctx(tmp)
+  writeRequirements(c.resources, "numpy==2.5.1\n")
+
+  let pipRuns = 0
+  const exec = async (_exe: string, args: string[]) => {
+    if (args[0] === "-m" && args[1] === "pip") pipRuns++
+  }
+  const download = async (_url: string, dest: string) => writeFileSync(dest, "")
+
+  await runSetup("python", { ...c, exec, download }, () => {})
+  expect(setupStatus(c.userData, c.resources).python.installed).toBe(true)
+
+  // Same inputs: still installed, nothing re-runs.
+  const afterFirst = pipRuns
+  await runSetup("python", { ...c, exec, download }, () => {})
+  expect(pipRuns).toBe(afterFirst)
+
+  // A new pin moves the stamp, so the component reads as NOT installed and pip runs again.
+  writeRequirements(c.resources, "numpy==2.5.1\nmatplotlib==3.11.1\n")
+  expect(setupStatus(c.userData, c.resources).python.installed).toBe(false)
+  await runSetup("python", { ...c, exec, download }, () => {})
+  expect(pipRuns).toBeGreaterThan(afterFirst)
+  expect(setupStatus(c.userData, c.resources).python.installed).toBe(true)
+})
+
+test("a lockfile top-up does not re-download the interpreter", async () => {
+  const tmp = mkdtempSync(join(tmpdir(), "setup-"))
+  const c = ctx(tmp)
+  writeRequirements(c.resources, "numpy==2.5.1\n")
+
+  let downloads = 0
+  const download = async (_url: string, dest: string) => {
+    downloads++
+    writeFileSync(dest, "")
+  }
+  // tar is stubbed, so stand the interpreter up by hand the way extraction would.
+  const exec = async (exe: string) => {
+    if (exe === "tar") {
+      mkdirSync(join(c.userData, "python"), { recursive: true })
+      writeFileSync(join(c.userData, "python", "python.exe"), "")
+    }
+  }
+
+  await runSetup("python", { ...c, exec, download }, () => {})
+  expect(downloads).toBe(1)
+
+  // Only the wheels changed — re-fetching 25MB to install one of them would make every
+  // upgrade feel like a fresh install.
+  writeRequirements(c.resources, "numpy==2.5.1\nmatplotlib==3.11.1\n")
+  await runSetup("python", { ...c, exec, download }, () => {})
+  expect(downloads).toBe(1)
+})
+
 test("runSetup(chromium) drives the playwright CLI under electron-as-node and writes the marker", async () => {
   const tmp = mkdtempSync(join(tmpdir(), "setup-"))
   const c = ctx(tmp)

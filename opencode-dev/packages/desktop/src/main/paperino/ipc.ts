@@ -131,7 +131,12 @@ export function registerPaperinoIpc() {
   // First-run runtime setup (Chromium, portable Python). The onboarding wizard drives
   // these; Settings re-runs them after a skip. Progress is broadcast rather than returned
   // so a long install can paint a bar instead of freezing on one await.
-  ipcMain.handle("paperino-setup-status", () => setupStatus(app.getPath("userData")))
+  // resources is passed so the python component can compare its lockfile stamp. Without it
+  // the check degrades to "a marker exists", and a build that adds a package would report
+  // setup complete while that package is missing from the interpreter.
+  ipcMain.handle("paperino-setup-status", () =>
+    setupStatus(app.getPath("userData"), join(process.resourcesPath, "paperino")),
+  )
 
   ipcMain.handle("paperino-setup-run", async (_event, component: SetupComponent) => {
     try {

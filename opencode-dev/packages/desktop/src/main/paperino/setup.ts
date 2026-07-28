@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
-import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { get } from "node:https"
 import { join } from "node:path"
 
@@ -30,10 +31,49 @@ const PYTHON_URL =
 
 const markerPath = (userData: string, component: SetupComponent) => join(userData, "setup", `${component}.done`)
 
-export function setupStatus(userData: string): Record<SetupComponent, { installed: boolean }> {
+const REQUIREMENTS = [
+  ["paperbanana", "requirements.lock"],
+  ["paperino-config", "skill", "requirements.txt"],
+] as const
+
+/**
+ * What the python component was installed FROM.
+ *
+ * The marker used to be a bare existence check, which meant adding a package to a lockfile
+ * could never reach anyone who had already run setup: the marker was there, pip never
+ * re-ran, and the feature needing that package reported itself unavailable forever. Figure
+ * Studio's chart engine hit exactly that — matplotlib was pinned, and every existing
+ * install would have kept saying "needs setup".
+ *
+ * Stamping the marker with a hash of the requirement files is the same idea as tokens.css's
+ * version marker: the artifact records which inputs produced it, so a change to the inputs
+ * re-runs the step and an unchanged one stays free.
+ */
+function pythonStamp(resources: string): string {
+  const hash = createHash("sha256")
+  for (const parts of REQUIREMENTS) {
+    const file = join(resources, ...parts)
+    hash.update(existsSync(file) ? readFileSync(file) : Buffer.alloc(0))
+  }
+  return hash.digest("hex").slice(0, 16)
+}
+
+/**
+ * Chromium is content-independent — it is whatever `playwright install` fetches — so its
+ * marker stays a plain existence check and an upgrade never re-downloads ~150MB. Only the
+ * python component compares a stamp, and only when the caller can supply `resources`.
+ */
+function isInstalled(userData: string, component: SetupComponent, resources?: string): boolean {
+  const marker = markerPath(userData, component)
+  if (!existsSync(marker)) return false
+  if (component !== "python" || !resources) return true
+  return readFileSync(marker, "utf8").trim() === pythonStamp(resources)
+}
+
+export function setupStatus(userData: string, resources?: string): Record<SetupComponent, { installed: boolean }> {
   return {
-    chromium: { installed: existsSync(markerPath(userData, "chromium")) },
-    python: { installed: existsSync(markerPath(userData, "python")) },
+    chromium: { installed: isInstalled(userData, "chromium") },
+    python: { installed: isInstalled(userData, "python", resources) },
   }
 }
 
@@ -79,7 +119,7 @@ export async function runSetup(
   onProgress: (p: SetupProgress) => void,
 ): Promise<void> {
   const marker = markerPath(ctx.userData, component)
-  if (existsSync(marker)) return
+  if (isInstalled(ctx.userData, component, ctx.resources)) return
 
   const exec = ctx.exec ?? defaultExec
   const download = ctx.download ?? defaultDownload
@@ -100,19 +140,25 @@ export async function runSetup(
   } else {
     mkdirSync(join(ctx.userData, "setup"), { recursive: true })
     const archive = join(ctx.userData, "setup", "python.tar.gz")
-
-    emit("downloading Python", 0)
-    await download(PYTHON_URL, archive, (p) => emit("downloading Python", p))
-
-    emit("extracting Python")
-    mkdirSync(join(ctx.userData, "python"), { recursive: true })
-    // bsdtar ships with Windows 10+; --strip-components drops the archive's top-level dir.
-    await exec("tar", ["-xzf", archive, "-C", join(ctx.userData, "python"), "--strip-components", "1"], {
-      ...process.env,
-    })
-
-    // One interpreter serves BOTH PaperBanana and the office skills (xlsx/docx/pdf).
+    // One interpreter serves BOTH PaperBanana and the office skills (xlsx/docx/pdf), and
+    // now Figure Studio's chart engine too.
     const python = join(ctx.userData, "python", "python.exe")
+
+    // Only fetch the runtime if it is genuinely absent. When the stamp moved because a
+    // lockfile gained a package, the interpreter is already here and all that is owed is a
+    // pip top-up — re-downloading and re-extracting 25MB to install one wheel would make
+    // every upgrade feel like a fresh install.
+    if (!existsSync(python)) {
+      emit("downloading Python", 0)
+      await download(PYTHON_URL, archive, (p) => emit("downloading Python", p))
+
+      emit("extracting Python")
+      mkdirSync(join(ctx.userData, "python"), { recursive: true })
+      // bsdtar ships with Windows 10+; --strip-components drops the archive's top-level dir.
+      await exec("tar", ["-xzf", archive, "-C", join(ctx.userData, "python"), "--strip-components", "1"], {
+        ...process.env,
+      })
+    }
     emit("installing PaperBanana packages")
     await exec(python, ["-m", "pip", "install", "-r", join(ctx.resources, "paperbanana", "requirements.lock")], {
       ...process.env,
@@ -126,6 +172,8 @@ export async function runSetup(
   }
 
   mkdirSync(join(ctx.userData, "setup"), { recursive: true })
-  writeFileSync(marker, new Date().toISOString())
+  // The python marker records WHAT was installed, not merely that something was; a later
+  // lockfile change moves the stamp and re-runs the pip step.
+  writeFileSync(marker, component === "python" ? pythonStamp(ctx.resources) : new Date().toISOString())
   emit("done", 100)
 }
