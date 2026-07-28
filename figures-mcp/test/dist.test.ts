@@ -21,6 +21,13 @@ test("dist layout is complete", () => {
     "assets/tokens.css",
     "assets/lib/katex/katex.mjs",
     "templates/schematic/figure.html",
+    // The mpl engine's runtime: the style module figure.py imports, the face matplotlib
+    // registers and the browser resolves, and the template scaffold copies. A packaged
+    // build missing any of these fails only at the moment a user asks for a chart.
+    "assets/paperino_mpl.py",
+    "assets/fonts/TeXGyreTermes-Regular.otf",
+    "assets/fonts/TeXGyreTermes-Regular.woff2",
+    "templates/chart-mpl/figure.py",
     "node_modules/playwright/cli.js",
     "node_modules/playwright-core/package.json",
   ])

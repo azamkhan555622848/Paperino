@@ -99,9 +99,20 @@ is no URL to navigate — seed a project with `window.api.storeSet(...)` plus th
 
 ## figures-mcp
 
-Code-authored figures: HTML for structure, CSS custom properties for style, `data.json` for
-every number, one SVG overlay for arrows and braces. Five tools — `figure_scaffold`,
-`figure_render`, `figure_lint`, `figure_review`, `data_query`. Tests: `bun test` (27).
+Code-authored figures. Every number comes from `data.json`. Five tools — `figure_scaffold`,
+`figure_render`, `figure_lint`, `figure_review`, `data_query`. Tests: `bun test` (84).
+
+- **There are TWO engines and the model picks** (v3, 2026-07-28, spec
+  `2026-07-28-figure-studio-chart-engine-design.md`). `meta.yaml`'s `engine` is `html`
+  (HTML for structure, CSS custom properties for style, one SVG overlay for arrows and
+  braces) or `mpl` (matplotlib authoring `figure.py`). They converge on **an SVG measured in
+  Chromium**, which is the only reason one lint and one review loop cover both; any future
+  engine must reach that point or it does not ship.
+  The html engine's whole plotting library is `lib/scale.js` — 71 lines, `scaleLinear` and
+  `scaleBand`, **both linear** — and `exemplar-chart.png` (four bars, one series, no legend)
+  is its true ceiling. It has no log, band, marker, legend, reference-line or panel
+  primitive, so a chart request under `html` does not come out worse, it comes out as a
+  *schematic instead*. That is what the mpl engine exists to fix. Charts go to `mpl`.
 
 - **Playwright hangs under bun.** It drives Chrome over `--remote-debugging-pipe` on fds
   3/4, which bun's spawn ignores; `chromium.launch()` simply never resolves. All browser
@@ -165,8 +176,59 @@ every number, one SVG overlay for arrows and braces. Five tools — `figure_scaf
   untraceable numbers (bogus provenance). KaTeX internals are also exempt from the 7pt
   floor and from intra-formula overlap: LaTeX itself sets scripts at 7/5pt, and KaTeX
   absolutely positions glyph boxes.
-- `figure_scaffold` **auto-refreshes** vendored `tokens.css` + `lib/` when the version
-  marker on line 1 of tokens.css differs. Vendoring only-if-absent would strand existing
+### The mpl engine (v3) — every one of these failed silently
+
+- **`svg.fonttype: "none"` is load-bearing.** matplotlib's default, `"path"`, OUTLINES text
+  into `<path>`. The manifest is built by walking text nodes, so an outlined figure measures
+  as having *no text at all* and every text rule — overlap, contrast, the type floor, the
+  font allowlist and **provenance** — passes vacuously on a figure nobody checked.
+  `paperino_mpl.py` owns it, with `pdf.fonttype: 42` (IEEE/ACM/Elsevier reject Type 3).
+- **An SVG document has no `<body>`,** and the manifest walker starts at `document.body`. The
+  worker therefore inlines matplotlib's SVG into a one-line HTML shell rather than navigating
+  to the `.svg`. That shell also links `tokens.css`, without which Chromium cannot resolve the
+  face matplotlib named and every text node reports a system-serif fallback.
+- **Inside a matplotlib SVG the user unit is a POINT (72/in), not a CSS px (96/in).** The
+  96dpi mapping that is correct for the html engine reported genuine 9pt labels as 6.75pt and
+  a 0.7 linewidth as 0.7px. Rule 3 takes `ptPerUnit` from the engine; module strokes are ≥0.8
+  so they clear rule 6's 0.75 floor *directly*, with no conversion to hide behind.
+- **The font family must be spelled as the font file spells it** — `TeX Gyre Termes`, spaces
+  and all. matplotlib normalizes `font.family` to the name inside the file, so asking for
+  `TeXGyreTermes` still emits `'TeX Gyre Termes'`; declare the `@font-face` under any other
+  spelling and Chromium silently substitutes a system serif. Termes ships as **OTF**, not TTF:
+  its outlines are CFF, FreeType reads that natively, and converting to glyf re-outlines every
+  glyph for nothing.
+- **Formula internals cannot be detected by font family.** With `fontset: stix` matplotlib
+  takes *symbols* from STIX but upright glyphs inside math from the **body** face, so a
+  superscript reads as `TeX Gyre Termes` exactly like a plain label. The structural tell is
+  absolute glyph positioning — a `<tspan>` carrying explicit `x` AND `y`, the same thing KaTeX
+  does — and it earns the same three exemptions: sub-7pt script sizes, self-overlap, and
+  digits that are notation. The venue must also allow its math faces, or every formula fails
+  rule 13.
+- **`derived` is inferred from matplotlib's gids** (`g[id^="xtick"]`), not declared, so an mpl
+  author can neither forget it nor abuse it. The lookup must be `closest()`: `<g id="xtick_1">`
+  *wraps* `<g id="text_N">`, and a non-greedy scan of the file stops at the inner `</g>`.
+- **Never let the worker re-render an mpl figure.** It used to overwrite `build/<name>.{png,pdf}`
+  with a browser screenshot and `page.pdf`, silently discarding the vector Type-42 PDF that
+  `\includegraphics` wants — which is the entire reason `pdf.fonttype` is pinned — and replacing
+  600dpi output with ~3x. The page exists to *measure* the figure, not to redraw it.
+- **`author-exemplars.ts` lints each exemplar before copying it.** An exemplar that cannot pass
+  the rules it exemplifies is incoherent, and it ships as the bar every future figure is steered
+  toward. That gate found five real bugs in one run.
+- **A log axis spanning barely one decade makes matplotlib label the MINOR ticks** — an axis
+  reading `6×10⁻¹, 4×10⁻¹, 3×10⁻¹` where no bar can be valued. Pin `set_ylim` to whole decades
+  and `NullFormatter()` the minors. Same class as the unlabelled top gridline v2 shipped for
+  weeks: found by *looking at the PNG*, not by any test.
+
+### Shared
+
+- **The figure face is venue-derived** (`venue:` in `paperino.yaml` → `src/venue.ts`), because
+  IEEE, ACM, NeurIPS, ICML, ICLR and ACL all set body text in Times while v2 pinned Computer
+  Modern — every figure in those papers mismatched its own caption. The venue drives the text
+  face, the math fontset, *and* the print widths, and it is stamped into the vendored
+  `tokens.css` version marker so changing it re-vendors through the existing mechanism. Absent
+  `venue` means `neurips`, whose 3.25/5.5in are exactly the old 312/528px — no workspace reflows.
+- `figure_scaffold` **auto-refreshes** vendored `tokens.css` + `lib/` + `fonts/` +
+  `paperino_mpl.py` when the version marker on line 1 differs. Vendoring only-if-absent would strand existing
   workspaces on the design system they were born with. Exemplars are self-authored —
   regenerate with `bun test/author-exemplars.ts` after touching tokens or templates, and
   **look at the PNGs**: they are the bar the vision review steers every figure toward.

@@ -57,3 +57,10 @@ typing-inspection==0.4.2
 urllib3==2.7.0
 uvicorn==0.51.0
 websockets==16.0
+
+# Figure Studio's `mpl` engine, not PaperBanana's. Both run on the ONE portable CPython
+# that setup.ts installs into userData, and setup.ts installs exactly this lockfile — so a
+# second list would mean a second download and two things to keep in step. numpy above is
+# already matplotlib's main dependency. Dev installs the same pin through
+# paperino-config/skill/requirements.txt; change one, change both.
+matplotlib==3.11.1
