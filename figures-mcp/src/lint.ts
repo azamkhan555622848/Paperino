@@ -181,13 +181,16 @@ export function lint(input: LintInput): LintError[] {
     }
   }
 
-  // 9 root-svg
-  for (const m of input.source.matchAll(/<svg\b[^>]*>/g)) {
-    const tag = m[0]
-    if (!/viewBox=/.test(tag)) err("root-svg", "svg", "no viewBox", "viewBox required")
-    if (/\bwidth="\d+"/.test(tag) || /\bheight="\d+"/.test(tag))
-      err("root-svg", "svg", "fixed px width/height", "no fixed px dimensions")
-  }
+  // 9 root-svg: AUTHORED markup only. matplotlib emits its own root <svg> carrying both a
+  // viewBox and pt dimensions; no human wrote it and there is nothing in it to fix, so
+  // failing an mpl figure here would be an unfixable error by construction.
+  if (input.meta.engine !== "mpl")
+    for (const m of input.source.matchAll(/<svg\b[^>]*>/g)) {
+      const tag = m[0]
+      if (!/viewBox=/.test(tag)) err("root-svg", "svg", "no viewBox", "viewBox required")
+      if (/\bwidth="\d+"/.test(tag) || /\bheight="\d+"/.test(tag))
+        err("root-svg", "svg", "fixed px width/height", "no fixed px dimensions")
+    }
 
   // 10 meta-complete
   for (const key of ["caption", "alt", "claim"] as const)

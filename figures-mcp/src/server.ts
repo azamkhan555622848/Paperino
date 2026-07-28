@@ -9,6 +9,7 @@ import { scaffold } from "./scaffold"
 import { render } from "./render"
 import { lint } from "./lint"
 import { dataQuery } from "./data-query"
+import { resolveVenue } from "./venue"
 
 const server = new McpServer({ name: "figures-mcp", version: "0.1.0" })
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] })
@@ -75,10 +76,18 @@ server.registerTool(
     const dir = join(a.workspace, "figures", a.name)
     const bboxPath = join(dir, "build", "bboxes.json")
     if (!existsSync(bboxPath)) return text("no render found — run figure_render first")
+    const meta = parse(readFileSync(join(dir, "meta.yaml"), "utf8"))
+    const engine: "html" | "mpl" = meta.engine === "mpl" ? "mpl" : "html"
+    // The venue face, not every face we ship: a Times paper accepts Termes and a Computer
+    // Modern paper accepts KaTeX, so a figure set in the other one is caught rather than
+    // silently mismatching its own caption. KaTeX_ stays allowed either way — the HTML
+    // engine typesets math with it regardless of venue.
+    const venue = resolveVenue(a.workspace)
     const errors = lint({
-      source: readFileSync(join(dir, "figure.html"), "utf8"),
-      meta: parse(readFileSync(join(dir, "meta.yaml"), "utf8")),
+      source: readFileSync(join(dir, engine === "mpl" ? "figure.py" : "figure.html"), "utf8"),
+      meta: { ...meta, engine },
       data: JSON.parse(readFileSync(join(dir, "data.json"), "utf8")),
+      allowedFaces: ["KaTeX_", venue.textFace],
       manifest: JSON.parse(readFileSync(bboxPath, "utf8")),
     })
     const result = { passed: errors.length === 0, errors }

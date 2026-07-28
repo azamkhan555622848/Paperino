@@ -22,6 +22,70 @@ const base = (over: Partial<LintInput> = {}): LintInput => ({
   ...over,
 })
 
+/** An mpl figure: source is figure.py, and the venue face is Termes. */
+const mpl = (over: Partial<LintInput> = {}): LintInput => ({
+  source: "from paperino_mpl import ACCENT, data, figure, save\n",
+  meta: { archetype: "chart", engine: "mpl", caption: "c", alt: "a", claim: "x" },
+  data: { values: [3.7] },
+  allowedFaces: ["KaTeX_", "TeX Gyre Termes"],
+  manifest: { viewport: { width: 528, height: 300 }, texts: [], strokes: [], elements: [] },
+  ...over,
+})
+
+test("rule 8 still fires on a matplotlib label that invents a number", () => {
+  // The whole point of a second engine passing through the same lint. An engine that
+  // escaped provenance would be a downgrade however good its output looked.
+  const errors = lint(
+    mpl({
+      manifest: {
+        viewport: { width: 528, height: 300 },
+        texts: [box({ text: "9.9x faster", fontFamily: '"TeX Gyre Termes", serif' })],
+        strokes: [],
+        elements: [],
+      },
+    }),
+  )
+  expect(errors.some((e) => e.rule === "provenance" && e.actual === "9.9")).toBe(true)
+})
+
+test("rule 8 passes when the matplotlib label traces to data.json", () => {
+  const errors = lint(
+    mpl({
+      data: { speedup: 9.9 },
+      manifest: {
+        viewport: { width: 528, height: 300 },
+        texts: [box({ text: "9.9x faster", fontFamily: '"TeX Gyre Termes", serif' })],
+        strokes: [],
+        elements: [],
+      },
+    }),
+  )
+  expect(errors.some((e) => e.rule === "provenance")).toBe(false)
+})
+
+test("rule 9 does not fire on matplotlib's own root svg", () => {
+  // It carries a viewBox AND pt dimensions, and no human wrote it — failing here would be
+  // an error the author cannot fix.
+  const errors = lint(mpl({ source: '<svg width="516pt" height="216pt" viewBox="0 0 516 216">' }))
+  expect(errors.some((e) => e.rule === "root-svg")).toBe(false)
+})
+
+test("rule 9 still fires on authored html markup", () => {
+  const errors = lint(base({ source: '<svg width="100" height="50">' }))
+  expect(errors.some((e) => e.rule === "root-svg")).toBe(true)
+})
+
+test("rule 13 narrows to the venue face and still catches a silent fallback", () => {
+  const withFace = (fontFamily: string) =>
+    mpl({ manifest: { viewport: { width: 528, height: 300 }, texts: [box({ fontFamily })], strokes: [], elements: [] } })
+  expect(lint(withFace('"TeX Gyre Termes", serif')).some((e) => e.rule === "font-allowlist")).toBe(false)
+  expect(lint(withFace('"DejaVu Serif", serif')).some((e) => e.rule === "font-allowlist")).toBe(true)
+  // A Computer Modern paper must reject Termes, or a figure mismatches its own caption.
+  const cmOnly = withFace('"TeX Gyre Termes", serif')
+  cmOnly.allowedFaces = ["KaTeX_"]
+  expect(lint(cmOnly).some((e) => e.rule === "font-allowlist")).toBe(true)
+})
+
 /** Manifest helper for the v2 rules — keeps the new tests readable. */
 const mf = (over: Partial<LintInput["manifest"]> = {}): LintInput["manifest"] => ({
   viewport: { width: 528, height: 300 },
