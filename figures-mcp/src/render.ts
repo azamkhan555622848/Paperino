@@ -4,11 +4,13 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parse } from "yaml"
+import { runMpl } from "./engines/mpl"
+import { resolveVenue } from "./venue"
 
-// 96dpi print mapping: 312px = 3.25in (two-column width), 528px = 5.5in (NeurIPS/ICML
-// text width). page.pdf sizes the PDF page from these px, so \includegraphics at
-// \linewidth lands ~1:1 and a 9pt label is 9pt on the page by construction.
-const VIEWPORTS = { narrow: 312, full: 528 } as const
+// The 96dpi print mapping now comes from the workspace's venue (src/venue.ts): page.pdf
+// sizes the PDF page from these px, so \includegraphics at \linewidth lands ~1:1 and a 9pt
+// label is 9pt on the page by construction. A workspace with no `venue` resolves to
+// neurips, whose 3.25/5.5in are exactly the 312/528px this used to hardcode.
 // import.meta.dir is bun-only (undefined under node); import.meta.url works in both, and
 // in the packaged bundle it points at dist/, where render-worker.mjs sits beside server.mjs.
 const WORKER = join(dirname(fileURLToPath(import.meta.url)), "render-worker.mjs")
@@ -78,18 +80,39 @@ function runWorker(jobPath: string): Promise<RenderResult> {
 
 export async function render(workspace: string, name: string): Promise<RenderResult> {
   const figureDir = join(workspace, "figures", name)
-  const htmlPath = join(figureDir, "figure.html")
-  if (!existsSync(htmlPath)) return { ok: false, error: `no figure.html at ${htmlPath}`, consoleOutput: [], png: null }
   const meta = parse(readFileSync(join(figureDir, "meta.yaml"), "utf8"))
-  const width = VIEWPORTS[(meta.width as "narrow" | "full") ?? "full"] ?? VIEWPORTS.full
-  const data = existsSync(join(figureDir, "data.json")) ? readFileSync(join(figureDir, "data.json"), "utf8") : "{}"
+  const engine: "html" | "mpl" = meta.engine === "mpl" ? "mpl" : "html"
+  const widthName = (meta.width as "narrow" | "full") ?? "full"
+  const width = resolveVenue(workspace).px[widthName] ?? resolveVenue(workspace).px.full
   const buildDir = join(figureDir, "build")
   mkdirSync(buildDir, { recursive: true })
 
+  // The mpl engine draws first, in Python; Chromium then measures what it drew. The HTML
+  // engine draws and is measured in the same pass. Both converge on an SVG in a browser,
+  // which is the only reason one lint and one review loop cover both.
+  if (engine === "mpl") {
+    const script = join(figureDir, "figure.py")
+    if (!existsSync(script)) return { ok: false, error: `no figure.py at ${script}`, consoleOutput: [], png: null }
+    const built = await runMpl({ workspace, figureDir, name })
+    if (!built.ok) return { ok: false, error: built.error, consoleOutput: [], png: null }
+  } else {
+    const htmlPath = join(figureDir, "figure.html")
+    if (!existsSync(htmlPath)) return { ok: false, error: `no figure.html at ${htmlPath}`, consoleOutput: [], png: null }
+  }
+
+  const data = existsSync(join(figureDir, "data.json")) ? readFileSync(join(figureDir, "data.json"), "utf8") : "{}"
   const jobPath = join(tmpdir(), `paperino-figure-${name}-${process.pid}.json`)
   writeFileSync(
     jobPath,
-    JSON.stringify({ figuresDir: join(workspace, "figures"), buildDir, name, width, archetype: meta.archetype, data }),
+    JSON.stringify({
+      figuresDir: join(workspace, "figures"),
+      buildDir,
+      name,
+      width,
+      archetype: meta.archetype,
+      data,
+      engine,
+    }),
   )
   try {
     return await runWorker(jobPath)

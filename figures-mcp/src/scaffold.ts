@@ -16,6 +16,14 @@ export type Archetype = "schematic" | "gallery" | "chart" | "table"
 export type ScaffoldOpts = {
   name: string
   archetype: Archetype
+  /**
+   * Which renderer authors this figure. Defaults to html, the historical behaviour.
+   *
+   * mpl authors figure.py against matplotlib; html authors figure.html against the CSS
+   * design system. They converge on an SVG measured in Chromium, so both are linted by
+   * the same 13 rules.
+   */
+  engine?: "html" | "mpl"
   claim: string
   caption: string
   width: "narrow" | "full"
@@ -60,13 +68,26 @@ export async function scaffold(workspace: string, opts: ScaffoldOpts): Promise<{
   }
 
   mkdirSync(figureDir)
-  cpSync(join(TEMPLATES, opts.archetype, "figure.html"), join(figureDir, "figure.html"))
+  const engine = opts.engine ?? "html"
+  if (engine === "mpl") {
+    cpSync(join(TEMPLATES, "chart-mpl", "figure.py"), join(figureDir, "figure.py"))
+    // Vendored beside tokens.css and refreshed on the same version-marker rule, so an
+    // existing workspace is not stranded on the style module it was born with.
+    const markerOf = (py: string) => py.split("\n", 1)[0].trim()
+    const shippedPy = readFileSync(join(ASSETS, "paperino_mpl.py"), "utf8")
+    const target = join(figuresDir, "paperino_mpl.py")
+    if (!existsSync(target) || markerOf(readFileSync(target, "utf8")) !== markerOf(shippedPy))
+      writeFileSync(target, shippedPy)
+  } else {
+    cpSync(join(TEMPLATES, opts.archetype, "figure.html"), join(figureDir, "figure.html"))
+  }
   writeFileSync(join(figureDir, "data.json"), "{}\n")
   writeFileSync(
     join(figureDir, "meta.yaml"),
     stringify({
       id: opts.name,
       archetype: opts.archetype,
+      engine,
       width: opts.width,
       caption: opts.caption,
       alt: opts.alt?.trim() || opts.caption,

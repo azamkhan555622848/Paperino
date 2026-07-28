@@ -11,6 +11,51 @@ beforeEach(() => {
   mkdirSync(WS, { recursive: true })
 })
 
+// The keystone of the two-engine design: a matplotlib figure must produce the SAME manifest
+// the HTML engine produces, or lint cannot cover both. If svg.fonttype ever regresses to
+// "path", text nodes vanish and this is the test that notices — every text-level rule,
+// provenance included, would otherwise pass vacuously on an unmeasured figure.
+test(
+  "a matplotlib figure yields a manifest with measurable text and gid-derived ticks",
+  async () => {
+    await scaffold(WS, { name: "mplfig", archetype: "chart", engine: "mpl", claim: "c", caption: "c", width: "full" })
+    const dir = join(WS, "figures", "mplfig")
+    writeFileSync(join(dir, "data.json"), JSON.stringify({ bits: [2, 4, 8], err: [1.0, 0.0625, 0.000244] }))
+    writeFileSync(
+      join(dir, "figure.py"),
+      [
+        "from paperino_mpl import ACCENT, data, figure, save",
+        "d = data()",
+        "fig, (ax,) = figure('full')",
+        "ax.plot(d['bits'], d['err'], marker='o', color=ACCENT)",
+        "ax.set_yscale('log')",
+        "ax.set_xlabel('bit-width')",
+        "save(fig)",
+      ].join("\n"),
+    )
+
+    const result = await render(WS, "mplfig")
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const manifest = JSON.parse(readFileSync(join(dir, "build", "bboxes.json"), "utf8"))
+    // Real <text> nodes, not outlined <path>.
+    expect(manifest.texts.length).toBeGreaterThan(3)
+    const axisLabel = manifest.texts.find((t: { text: string }) => t.text === "bit-width")
+    expect(axisLabel).toBeDefined()
+    // The vendored face resolved; a system-serif fallback here would fail rule 13.
+    expect(axisLabel.fontFamily).toContain("TeX Gyre Termes")
+    // Tick labels are computed, so they must be derived WITHOUT the author declaring it.
+    expect(manifest.texts.filter((t: { derived: boolean }) => t.derived).length).toBeGreaterThan(2)
+    // ...and the axis label is not a tick, so it must not be exempted.
+    expect(axisLabel.derived).toBe(false)
+    // The mpl engine's SVG is the figure itself, so it is published, not best-effort.
+    expect(result.svg).toBe(join(dir, "build", "mplfig.svg"))
+    expect(existsSync(result.pdf)).toBe(true)
+  },
+  120_000,
+)
+
 test(
   "each archetype template renders out of the box",
   async () => {

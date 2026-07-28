@@ -11,7 +11,7 @@ import { extname, join, normalize, resolve } from "node:path"
 import { chromium } from "playwright"
 
 const job = JSON.parse(readFileSync(process.argv[2], "utf8"))
-const { figuresDir, buildDir, name, width, archetype, data } = job
+const { figuresDir, buildDir, name, width, archetype, data, engine } = job
 
 const consoleOutput = []
 const emit = (result) => {
@@ -54,7 +54,30 @@ try {
   page.on("console", (msg) => consoleOutput.push(`[${msg.type()}] ${msg.text()}`))
   page.on("pageerror", (err) => consoleOutput.push(`[pageerror] ${err.message}`))
   await page.addInitScript(`window.__DATA__ = ${data}`)
-  await page.goto(`${origin}/${name}/figure.html`)
+  if (engine === "mpl") {
+    // An SVG document has no <body>, and the entire manifest walker below starts at
+    // document.body. Inlining matplotlib's SVG into a one-line HTML shell keeps every line
+    // of that extraction working unchanged — and pulls in tokens.css, without which
+    // Chromium cannot resolve the face matplotlib named and every text node would report a
+    // system-serif fallback and fail rule 13.
+    const svgMarkup = readFileSync(join(buildDir, `${name}.svg`), "utf8").replace(/<\?xml[^>]*\?>/, "")
+    writeFileSync(
+      join(buildDir, `${name}.wrap.html`),
+      `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="../../tokens.css">` +
+        `<style>html,body{margin:0;padding:0;background:#fff}svg{display:block;max-width:100%;height:auto}</style>` +
+        `<body>${svgMarkup}</body>`,
+    )
+    await page.goto(`${origin}/${name}/build/${name}.wrap.html`)
+    // matplotlib emits static markup: nothing calls figReady(), so declare it ready once
+    // the vendored face has actually loaded. Measuring before then reports fallback metrics.
+    await page.evaluate(() =>
+      document.fonts.ready.then(() => {
+        window.__FIG_READY__ = true
+      }),
+    )
+  } else {
+    await page.goto(`${origin}/${name}/figure.html`)
+  }
 
   let failure = null
   try {
@@ -121,7 +144,13 @@ try {
           fontSize: parseFloat(cs.fontSize),
           color: cs.color,
           background: effectiveBackground(el),
-          derived: el.closest("[data-derived]") !== null,
+          // Tick labels are COMPUTED, not experiment numbers, so provenance must exempt
+          // them. The HTML engine declares that with data-derived; matplotlib says it
+          // structurally through its own gids, so an mpl author can neither forget it nor
+          // abuse it. closest() is required rather than a scan of the file: <g id="xtick_1">
+          // WRAPS a <g id="text_N">, and a non-greedy match stops at the inner </g>.
+          derived:
+            el.closest("[data-derived]") !== null || el.closest('g[id^="xtick"], g[id^="ytick"]') !== null,
           fontFamily: cs.fontFamily,
           inKatex: el.closest(".katex") !== null,
         })
@@ -170,9 +199,12 @@ try {
   const pdf = join(buildDir, `${name}.pdf`)
   await page.pdf({ path: pdf, width: `${width}px`, height: `${contentHeight}px`, printBackground: true, pageRanges: "1" })
 
-  // best-effort SVG (schematic only): read the overlay markup in the page, write it here
+  // The mpl engine already wrote a real SVG — that IS the figure, and it is what lint just
+  // measured. The HTML engine can only offer its annotation overlay, best-effort.
   let svgPath = null
-  if (archetype === "schematic") {
+  if (engine === "mpl") {
+    svgPath = join(buildDir, `${name}.svg`)
+  } else if (archetype === "schematic") {
     const svgMarkup = await page.evaluate(() => document.querySelector("svg#annot-overlay")?.outerHTML ?? null)
     if (svgMarkup) {
       svgPath = join(buildDir, `${name}.svg`)

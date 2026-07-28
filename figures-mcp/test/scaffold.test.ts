@@ -43,6 +43,7 @@ test("scaffold creates figure dir, meta.yaml, data.json and vendors the lib once
   expect(meta).toEqual({
     id: "fig01-demo",
     archetype: "schematic",
+    engine: "html", // the default; render/lint/review all dispatch on this
     width: "narrow",
     caption: "Demo.",
     alt: "Demo.", // defaults to the caption so a fresh figure passes meta-complete
