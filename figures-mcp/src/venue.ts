@@ -4,7 +4,15 @@ import { parse } from "yaml"
 
 export type Venue = {
   id: string
-  /** CSS family name AND the matplotlib family name — one string, so the two engines cannot drift. */
+  /**
+   * CSS family name AND the matplotlib family name — one string, so the two engines cannot drift.
+   *
+   * It must be the font's REAL family name, spaces and all. matplotlib normalizes whatever you
+   * pass as `font.family` to the name inside the font file, so asking for "TeXGyreTermes" still
+   * emits `font-family: 'TeX Gyre Termes'`. Declare the @font-face under any other spelling and
+   * Chromium silently falls back to a system serif — wrong glyphs *and* a rule 13 failure, with
+   * nothing in between to warn you.
+   */
   textFace: string
   mathFontset: "cm" | "stix"
   inches: { narrow: number; full: number }
@@ -18,13 +26,14 @@ export type Venue = {
 // faces, but IEEE, ACM, NeurIPS, ICML, ICLR and ACL all set body text in Times — so
 // every figure in those papers was set in a different face from its own caption.
 const DPI = 96
+const TERMES = "TeX Gyre Termes"
 const VENUES: Record<string, { textFace: string; mathFontset: "cm" | "stix"; narrow: number; full: number }> = {
-  ieee: { textFace: "TeXGyreTermes", mathFontset: "stix", narrow: 3.5, full: 7.16 },
-  acm: { textFace: "TeXGyreTermes", mathFontset: "stix", narrow: 3.33, full: 7.0 },
-  neurips: { textFace: "TeXGyreTermes", mathFontset: "stix", narrow: 3.25, full: 5.5 },
-  icml: { textFace: "TeXGyreTermes", mathFontset: "stix", narrow: 3.25, full: 6.75 },
-  iclr: { textFace: "TeXGyreTermes", mathFontset: "stix", narrow: 3.25, full: 5.5 },
-  acl: { textFace: "TeXGyreTermes", mathFontset: "stix", narrow: 3.0, full: 6.3 },
+  ieee: { textFace: TERMES, mathFontset: "stix", narrow: 3.5, full: 7.16 },
+  acm: { textFace: TERMES, mathFontset: "stix", narrow: 3.33, full: 7.0 },
+  neurips: { textFace: TERMES, mathFontset: "stix", narrow: 3.25, full: 5.5 },
+  icml: { textFace: TERMES, mathFontset: "stix", narrow: 3.25, full: 6.75 },
+  iclr: { textFace: TERMES, mathFontset: "stix", narrow: 3.25, full: 5.5 },
+  acl: { textFace: TERMES, mathFontset: "stix", narrow: 3.0, full: 6.3 },
   // Plain \documentclass{article}: Computer Modern, and KaTeX already ships those faces.
   article: { textFace: "KaTeX_Main", mathFontset: "cm", narrow: 3.25, full: 5.5 },
 }

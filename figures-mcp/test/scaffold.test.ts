@@ -11,6 +11,28 @@ beforeEach(() => {
   mkdirSync(WS, { recursive: true })
 })
 
+test("tokens.css is stamped with the workspace's venue face", async () => {
+  writeFileSync(join(WS, "paperino.yaml"), "venue: ieee\n")
+  await scaffold(WS, { name: "f1", archetype: "chart", claim: "c", caption: "c", width: "full" })
+  const css = readFileSync(join(WS, "figures", "tokens.css"), "utf8")
+  expect(css.split("\n", 1)[0]).toContain("venue=ieee")
+  // The spaces matter: matplotlib emits 'TeX Gyre Termes', so the @font-face must declare
+  // that exact spelling or Chromium quietly renders a system serif instead.
+  expect(css).toContain('--font-text: "TeX Gyre Termes"')
+  expect(css).not.toContain("PLACEHOLDER")
+  expect(existsSync(join(WS, "figures", "fonts", "TeXGyreTermes-Regular.woff2"))).toBe(true)
+})
+
+test("changing the venue re-vendors tokens.css through the version marker", async () => {
+  await scaffold(WS, { name: "f1", archetype: "chart", claim: "c", caption: "c", width: "full" })
+  expect(readFileSync(join(WS, "figures", "tokens.css"), "utf8")).toContain("venue=neurips")
+  writeFileSync(join(WS, "paperino.yaml"), "venue: article\n")
+  await scaffold(WS, { name: "f2", archetype: "chart", claim: "c", caption: "c", width: "full" })
+  const css = readFileSync(join(WS, "figures", "tokens.css"), "utf8")
+  expect(css).toContain("venue=article")
+  expect(css).toContain('--font-text: "KaTeX_Main"')
+})
+
 test("scaffold creates figure dir, meta.yaml, data.json and vendors the lib once", async () => {
   await scaffold(WS, { name: "fig01-demo", archetype: "schematic", claim: "A precedes B", caption: "Demo.", width: "narrow" })
   expect(existsSync(join(WS, "figures", "fig01-demo", "figure.html"))).toBe(true)
@@ -60,7 +82,9 @@ test("scaffold refreshes vendored tokens.css + lib when the version marker diffe
   await scaffold(WS, { name: "fig-refresh", archetype: "schematic", claim: "c", caption: "cap", width: "full" })
 
   // tokens.css and lib/ are machine-owned: the upgrade is deliberate, not drift.
-  expect(readFileSync(join(WS, "figures", "tokens.css"), "utf8").split("\n")[0]).toBe("/* paperino-tokens v2.1 */")
+  expect(readFileSync(join(WS, "figures", "tokens.css"), "utf8").split("\n")[0]).toBe(
+    "/* paperino-tokens v3.0 venue=neurips */",
+  )
   expect(existsSync(join(WS, "figures", "lib", "math.js"))).toBe(true)
   expect(existsSync(join(WS, "figures", "lib", "katex", "katex.mjs"))).toBe(true)
   expect(existsSync(join(WS, "figures", "lib", "stale.js"))).toBe(false)

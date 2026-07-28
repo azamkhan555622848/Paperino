@@ -1,4 +1,4 @@
-/* paperino-tokens v2.1 */
+/* paperino-tokens v3.0 venue=PLACEHOLDER */
 /* Publication style (spec 2026-07-13). Figures reference ONLY these vars; raw hex/rgb
    in figure.html is a lint failure. Text faces are the KaTeX dist's Computer-Modern-
    derived fonts (SIL OFL), served from lib/katex/fonts/ — declared here so text works
@@ -9,6 +9,14 @@
 @font-face { font-family: "KaTeX_Main"; src: url("lib/katex/fonts/KaTeX_Main-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; }
 @font-face { font-family: "KaTeX_Main"; src: url("lib/katex/fonts/KaTeX_Main-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; }
 @font-face { font-family: "KaTeX_Typewriter"; src: url("lib/katex/fonts/KaTeX_Typewriter-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; }
+/* Times-metric text for the venues that set their body in Times (IEEE, ACM, NeurIPS, ICML,
+   ICLR, ACL). The family name MUST be spelled exactly as it is inside the font file —
+   matplotlib normalizes to that spelling when it writes the SVG, and a mismatch here means
+   Chromium silently renders a system serif instead. */
+@font-face { font-family: "TeX Gyre Termes"; src: url("fonts/TeXGyreTermes-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "TeX Gyre Termes"; src: url("fonts/TeXGyreTermes-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "TeX Gyre Termes"; src: url("fonts/TeXGyreTermes-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "TeX Gyre Termes"; src: url("fonts/TeXGyreTermes-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; }
 :root {
   /* ink */
   --bg: #ffffff;
@@ -21,7 +29,9 @@
   --accent: #1a4f9c;           /* restrained blue */
   --accent-warm: #b03a2e;      /* warm red */
   /* type — pt-true at the 96dpi PDF mapping (12px = 9pt) */
-  --font-text: "KaTeX_Main", Georgia, serif;
+  /* Stamped by scaffold from paperino.yaml's `venue`. Both engines read this one name, so a
+     chart and a schematic in the same paper cannot end up in different faces. */
+  --font-text: "PLACEHOLDER_FACE", Georgia, serif;
   --font-mono: "KaTeX_Typewriter", Consolas, monospace;
   --fs-body: 12px;             /* 9pt */
   --fs-label: 10.67px;         /* 8pt */

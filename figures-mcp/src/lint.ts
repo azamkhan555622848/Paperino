@@ -15,8 +15,11 @@ export type TextBox = {
 export type ElementBox = { selector: string; borderRadius: number; boxShadow: string }
 export type LintInput = {
   source: string
-  meta: { archetype: string; caption: string; alt: string; claim: string }
+  meta: { archetype: string; caption: string; alt: string; claim: string; engine?: "html" | "mpl" }
   data: unknown
+  /** Families a text node may be set in. Venue-derived when the server calls it, so a Times
+   *  paper and a Computer Modern paper each accept exactly their own face. */
+  allowedFaces?: string[]
   manifest: {
     viewport: { width: number; height: number }
     texts: TextBox[]
@@ -25,6 +28,11 @@ export type LintInput = {
   }
 }
 export type LintError = { rule: string; selector: string; actual: string; expected: string }
+
+/** Text faces vendored by scaffold. Anything else in a computed font-family is a silent
+ *  fallback — the failure rule 13 exists to catch. "TeX Gyre Termes" carries its spaces
+ *  because that is the name inside the font file, and matplotlib emits that spelling. */
+const SHIPPED_FACES = ["KaTeX_", "TeX Gyre Termes"]
 
 const rgb = (s: string): [number, number, number] | null => {
   const m = s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
@@ -204,10 +212,16 @@ export function lint(input: LintInput): LintError[] {
       err("web-chrome", e.selector, `box-shadow ${e.boxShadow.slice(0, 40)}`, "none")
   }
 
-  // 13 font-allowlist: catches a silent fallback to Segoe UI or the system serif.
+  // 13 font-allowlist: catches a silent fallback to Segoe UI, DejaVu or the system serif.
+  //
+  // The default is every face Paperino ships, because that is what the rule is actually for.
+  // The server narrows it to the workspace's venue face; a bare lint() call should still not
+  // fail a figure for using a font we vendored ourselves.
+  const allowed = input.allowedFaces ?? SHIPPED_FACES
   for (const t of texts) {
     const first = t.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "")
-    if (!first.startsWith("KaTeX_")) err("font-allowlist", t.selector, first, 'a "KaTeX_*" face from tokens.css')
+    if (!allowed.some((a) => first.startsWith(a)))
+      err("font-allowlist", t.selector, first, `one of: ${allowed.join(", ")}`)
   }
 
   return errors

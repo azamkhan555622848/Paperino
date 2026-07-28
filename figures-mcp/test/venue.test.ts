@@ -20,10 +20,13 @@ describe("resolveVenue", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
+  // The spaces are load-bearing. matplotlib normalizes font.family to the name inside the
+  // font file, so it emits 'TeX Gyre Termes' no matter what you ask for; tokens.css and the
+  // lint allowlist have to agree with THAT, or Chromium falls back to a system serif.
   test("ieee is Times-metric with STIX math and two-column widths", () => {
     const dir = ws("venue: ieee\n")
     const v = resolveVenue(dir)
-    expect(v.textFace).toBe("TeXGyreTermes")
+    expect(v.textFace).toBe("TeX Gyre Termes")
     expect(v.mathFontset).toBe("stix")
     expect(v.inches).toEqual({ narrow: 3.5, full: 7.16 })
     expect(v.px).toEqual({ narrow: 336, full: 687 })

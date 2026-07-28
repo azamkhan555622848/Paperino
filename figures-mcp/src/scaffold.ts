@@ -2,6 +2,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, wr
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { stringify } from "yaml"
+import { resolveVenue } from "./venue"
 
 // import.meta.dir is BUN-ONLY: under node (which is what the packaged bundle runs on via
 // ELECTRON_RUN_AS_NODE) it is undefined, and every asset path silently became undefined.
@@ -36,16 +37,26 @@ export async function scaffold(workspace: string, opts: ScaffoldOpts): Promise<{
   // server's. Vendoring only-if-absent would strand every existing workspace on the
   // design system it was born with, so an upgrade would silently never arrive.
   mkdirSync(figuresDir, { recursive: true })
+  // The venue is stamped INTO the version marker, so switching venue re-vendors by exactly
+  // the same rule a version bump does — one mechanism, not two.
+  const venue = resolveVenue(workspace)
+  const stamp = (css: string) =>
+    css
+      .replace(/^\/\* paperino-tokens (\S+)[^\n]*\*\//, `/* paperino-tokens $1 venue=${venue.id} */`)
+      .replace(/"PLACEHOLDER_FACE"/, `"${venue.textFace}"`)
   const versionOf = (css: string) => css.split("\n", 1)[0].trim()
-  const shipped = versionOf(readFileSync(join(ASSETS, "tokens.css"), "utf8"))
+  const shippedCss = stamp(readFileSync(join(ASSETS, "tokens.css"), "utf8"))
   const vendoredTokens = join(figuresDir, "tokens.css")
   const vendored = existsSync(vendoredTokens) ? versionOf(readFileSync(vendoredTokens, "utf8")) : null
-  if (vendored !== shipped) {
-    cpSync(join(ASSETS, "tokens.css"), vendoredTokens)
+  if (vendored !== versionOf(shippedCss)) {
+    writeFileSync(vendoredTokens, shippedCss)
     rmSync(join(figuresDir, "lib"), { recursive: true, force: true })
     cpSync(join(ASSETS, "lib"), join(figuresDir, "lib"), { recursive: true })
+    rmSync(join(figuresDir, "fonts"), { recursive: true, force: true })
+    cpSync(join(ASSETS, "fonts"), join(figuresDir, "fonts"), { recursive: true })
   } else if (!existsSync(join(figuresDir, "lib"))) {
     cpSync(join(ASSETS, "lib"), join(figuresDir, "lib"), { recursive: true })
+    cpSync(join(ASSETS, "fonts"), join(figuresDir, "fonts"), { recursive: true })
   }
 
   mkdirSync(figureDir)
