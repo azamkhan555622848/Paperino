@@ -12,6 +12,9 @@ import { join } from "node:path"
 const root = join(import.meta.dir, "..")
 const dist = join(root, "dist")
 
+// route.js must be regenerated BEFORE assets/ is copied, or dist ships a stale browser lib.
+await Bun.$`bun ${join(root, "scripts", "build-lib.ts")}`.quiet()
+
 rmSync(dist, { recursive: true, force: true })
 mkdirSync(dist, { recursive: true })
 

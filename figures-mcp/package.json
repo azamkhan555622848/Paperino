@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "bun src/server.ts",
+    "build:lib": "bun scripts/build-lib.ts",
     "build:dist": "bun scripts/build-dist.ts",
     "test": "bun test"
   },
