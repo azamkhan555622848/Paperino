@@ -1,3 +1,4 @@
 node_modules/
 test/tmp-*/
 dist/
+__pycache__/

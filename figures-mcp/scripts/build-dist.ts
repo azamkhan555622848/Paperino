@@ -29,8 +29,12 @@ if (!result.success) {
 }
 
 cpSync(join(root, "src", "render-worker.mjs"), join(dist, "render-worker.mjs"))
-cpSync(join(root, "src", "assets"), join(dist, "assets"), { recursive: true })
-cpSync(join(root, "src", "templates"), join(dist, "templates"), { recursive: true })
+// Skip Python bytecode. Importing paperino_mpl.py during dev leaves a __pycache__ beside it,
+// and cpSync copies whole trees — so a .pyc compiled by the DEV interpreter was riding into
+// the installer, where the runtime is a different CPython that can only ignore it.
+const noPycache = { recursive: true, filter: (src: string) => !src.includes("__pycache__") }
+cpSync(join(root, "src", "assets"), join(dist, "assets"), noPycache)
+cpSync(join(root, "src", "templates"), join(dist, "templates"), noPycache)
 for (const pkg of ["playwright", "playwright-core"]) {
   cpSync(join(root, "node_modules", pkg), join(dist, "node_modules", pkg), {
     recursive: true,
