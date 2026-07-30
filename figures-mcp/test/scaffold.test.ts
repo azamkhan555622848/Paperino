@@ -145,7 +145,7 @@ test("scaffold refreshes vendored tokens.css + lib when the version marker diffe
 
   // tokens.css and lib/ are machine-owned: the upgrade is deliberate, not drift.
   expect(readFileSync(join(WS, "figures", "tokens.css"), "utf8").split("\n")[0]).toBe(
-    "/* paperino-tokens v3.0 venue=neurips */",
+    "/* paperino-tokens v4.0 venue=neurips */",
   )
   expect(existsSync(join(WS, "figures", "lib", "math.js"))).toBe(true)
   expect(existsSync(join(WS, "figures", "lib", "katex", "katex.mjs"))).toBe(true)

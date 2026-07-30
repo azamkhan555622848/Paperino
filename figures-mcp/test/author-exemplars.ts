@@ -18,12 +18,23 @@ import { resolveVenue } from "../src/venue"
 const ws = mkdtempSync(join(tmpdir(), "fig-exemplars-"))
 const EXEMPLARS = join(import.meta.dir, "..", "src", "assets", "exemplars")
 
-// ---- exemplar 1: schematic — a two-panel mechanism sketch carrying real math ----
+// ---- exemplar 1: schematic — a 1->2->2 pipeline routed entirely by the v4 router ----
+//
+// v3's schematic exemplar was two independent columns of bordered cards, each with a single
+// bowed arrow. It exercised nothing the router does, so it steered every reviewed figure
+// toward the very idiom that produced the defects v4 exists for: hand-tuned `bow`, whole-box
+// anchors, and no answer at all for two edges entering one box.
+//
+// This one is the counter-example. It fans one source to two measurements and merges them
+// into a tall consumer at two named ports, and one stage is DELIBERATELY BORDERLESS — its
+// layout box runs to the column edge while its ink stops at the glyphs, so the arrowheads
+// land on the words only because anchoring is done on ink. No decorative rules, no spacer
+// divs, no legend: every stroke in the figure is an edge, and every edge means something.
 await scaffold(ws, {
   name: "ex-schematic",
   archetype: "schematic",
-  claim: "Shared residuals add coherently; independent residuals add stochastically.",
-  caption: "Aggregation of quantization residuals across a query group.",
+  claim: "Distortion profiles and channel scores jointly determine the per-layer compression policy.",
+  caption: "Pre-RoPE capture yields two per-layer measurements, which the compression policy consumes.",
   width: "full",
 })
 writeFileSync(
@@ -34,31 +45,66 @@ writeFileSync(
   <meta charset="utf-8" />
   <link rel="stylesheet" href="../tokens.css" />
   <style>
-    #fig-root { display: flex; gap: 26px; padding: 12px; align-items: flex-start; }
-    /* the gap has to leave room for the connector: at 10px the arrow collapses to a
-       bare arrowhead with no shaft */
-    .col { display: flex; flex-direction: column; gap: 26px; flex: 1; }
+    /* Stage widths + gutters sum to the 528px full-width box. The gutter has to leave room
+       for the connector: at 10px an arrow collapses to a bare arrowhead with no shaft, which
+       the router reports as edge-degenerate. */
+    #fig-root { display: flex; align-items: center; gap: 40px; padding: 12px 10px; }
+    .stage { display: flex; flex-direction: column; gap: 44px; }
+    #stage-in { width: 124px; }
+    #stage-mid { width: 168px; }
+    #stage-out { width: 136px; }
+    .node { border: var(--stroke-thin) solid var(--border-strong); padding: 9px 11px; display: flex; flex-direction: column; gap: 6px; }
+    /* Borderless ON PURPOSE, and ONE LINE of ink. Its layout box spans the whole middle
+       column while its glyphs stop well short of the column edge, so every arrowhead lands on
+       the type only because anchoring is done on ink — the one thing a whole-box anchor
+       cannot do, and the reason inkRect() exists.
+       One line, not two: the ink rect of a two-line block is the UNION of the lines, whose
+       right edge at mid-height is a corner of blank paper — the tail then leaves from nothing
+       even though the geometry is correct. Same lesson as the unlabelled top gridline: lint
+       passed, the picture did not. */
+    .evidence { white-space: nowrap; }
+    .evidence .math { margin-left: 7px; }
+    .tall { min-height: 92px; justify-content: center; }
+    strong { font-size: var(--fs-body); font-weight: 700; white-space: nowrap; }
+    .sub { color: var(--text-muted); font-size: var(--fs-label); }
+    /* --fs-body, not --fs-label: a formula set smaller than the words around it reads as a
+       footnote to its own box. */
+    .math { font-size: var(--fs-body); }
   </style>
 </head>
 <body>
   <div id="fig-root">
-    <div class="col">
-      <span class="panel-label" id="panel-a">(a)</span>
-      <div class="card" id="kv-shared"><h3>compressed KV head</h3><p>one residual <span class="math">\\Delta_{\\mathrm{vec}}</span>, read by all <span class="math">g</span> heads</p></div>
-      <div class="card" id="sum-coherent"><h3>coherent sum</h3><p><span class="math">O(g\\,\\sigma_{\\mathrm{vec}})</span></p></div>
+    <div class="stage" id="stage-in">
+      <div class="node" data-node id="capture">
+        <strong>Pre-RoPE capture</strong>
+        <span class="sub">keys and values</span>
+      </div>
     </div>
-    <div class="col">
-      <span class="panel-label" id="panel-b">(b)</span>
-      <div class="card" id="kv-indep"><h3>per-channel residuals</h3><p>independent <span class="math">\\Delta_{\\mathrm{ch},h}</span> per head</p></div>
-      <div class="card" id="sum-stochastic"><h3>stochastic sum</h3><p><span class="math">O(\\sqrt{g\\,d}\\,\\sigma_{\\mathrm{ch}})</span></p></div>
+    <div class="stage" id="stage-mid">
+      <div class="evidence" data-node id="distortion"><strong>Distortion profiles</strong><span class="math">\\mathcal{D}_K^{(\\ell)}(b)</span></div>
+      <div class="evidence" data-node id="scores"><strong>Channel scores</strong><span class="math">s_{K,d}^{(\\ell)}</span></div>
+    </div>
+    <div class="stage" id="stage-out">
+      <div class="node tall" data-node id="policy">
+        <strong>Compression policy</strong>
+        <span class="math">b_K^{(\\ell)},\\; b_V^{(\\ell)}</span>
+        <span class="sub">per channel group</span>
+      </div>
     </div>
   </div>
   <script type="module">
     import { renderMath } from "../lib/math.js"
-    import { arrow, figReady } from "../lib/annot.js"
+    import { arrow, fan, figReady } from "../lib/annot.js"
+    // Math FIRST — glyph geometry must be final before anything is measured, and on a
+    // borderless node the glyphs ARE the anchor.
     await renderMath()
-    arrow("#kv-shared", "#sum-coherent", { bow: 0.2 })
-    arrow("#kv-indep", "#sum-stochastic", { bow: 0.2 })
+    // One source, two consumers: fan() spreads the tails along the source's right edge so the
+    // two edges leave at different heights instead of stacking on one midpoint.
+    fan("#capture", ["#distortion", "#scores"], { tone: "ref" })
+    // Two edges into ONE tall node — the case that made an author draw fake 9px port squares
+    // to manufacture anchor targets. Named ports make the squares unnecessary.
+    arrow("#distortion", "#policy", { port: "right", to: "left:0.3", tone: "ref" })
+    arrow("#scores", "#policy", { port: "right", to: "left:0.7", tone: "ref" })
     figReady()
   </script>
 </body>

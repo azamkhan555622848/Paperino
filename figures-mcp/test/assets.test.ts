@@ -21,11 +21,13 @@ test("math.js exists and renders .math spans via the vendored katex", () => {
   expect(src).toContain("document.fonts.ready")
 })
 
-test("tokens.css is v3 publication style, unstamped in the shipped copy", () => {
+test("tokens.css is v4 publication style, unstamped in the shipped copy", () => {
   const css = readFileSync(join(import.meta.dir, "..", "src", "assets", "tokens.css"), "utf8")
   // The SHIPPED copy carries placeholders; scaffold stamps the venue in when it vendors.
   // If this ever ships pre-stamped, every workspace inherits one paper's venue.
-  expect(css.split("\n")[0]).toBe("/* paperino-tokens v3.0 venue=PLACEHOLDER */")
+  // v4 is the marker that re-vendors the router (lib/route.js + the v4 annot.js) into
+  // workspaces scaffolded under v3 — the lib refresh is keyed off this line alone.
+  expect(css.split("\n")[0]).toBe("/* paperino-tokens v4.0 venue=PLACEHOLDER */")
   expect(css).toContain('--font-text: "PLACEHOLDER_FACE"')
   expect(css).toContain('font-family: "TeX Gyre Termes"')
   expect(css).toContain('font-family: "KaTeX_Main"')
