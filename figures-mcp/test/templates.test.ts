@@ -51,7 +51,7 @@ for (const archetype of ["schematic", "gallery", "chart", "table"] as const) {
       if (!result.ok) throw new Error(`render failed: ${result.error}\n${result.consoleOutput.join("\n")}`)
 
       const dir = join(ws, "figures", "fig-t")
-      const errors = lint({
+      const { errors } = lint({
         source: readFileSync(join(dir, "figure.html"), "utf8"),
         meta: parse(readFileSync(join(dir, "meta.yaml"), "utf8")),
         data: DATA[archetype],

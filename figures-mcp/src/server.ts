@@ -45,7 +45,7 @@ server.registerTool(
             "  html — DIAGRAMS and structure: schematics, pipelines, free-form boxes and arrows, " +
             "rich inline math, annotated galleries, tables. You author figure.html with CSS layout " +
             "and the SVG annotation overlay, which matplotlib is poor at.\n" +
-            "Both are linted by the same 13 rules, provenance included. If the figure is a plot, pick mpl.",
+            "Both are linted by the same 17 rules, provenance included. If the figure is a plot, pick mpl.",
         ),
       claim: z.string().min(1),
       caption: z.string().min(1),
@@ -88,7 +88,13 @@ server.registerTool(
   "figure_lint",
   {
     description:
-      "Deterministic quality gate (13 rules: overlap, overflow, 7pt type floor, contrast, raw colors, stroke floor, palette, number provenance, svg viewBox, meta, pseudo-math, web-chrome, font allowlist). Must pass before figure_review. Patch by selector.",
+      "Deterministic quality gate (17 rules: overlap, overflow, 7pt type floor, contrast, raw colors, " +
+      "stroke floor, palette, number provenance, svg viewBox, meta, pseudo-math, web-chrome, font allowlist, " +
+      "stroke-over-text, dangling-edge, empty-node, orphan-legend — plus the router's own unroutable/degenerate " +
+      "findings). Must pass before figure_review. Patch by selector.\n" +
+      'A style rule you meant to break is declared in the source: data-intent="<reason>" on the element or ' +
+      "path, reported back in `exemptions`. It does NOT waive overflow, the 7pt floor, provenance or the font " +
+      "allowlist — declaring one of those is itself the error `intent-not-permitted`.",
     inputSchema: { workspace: ws, name: figName },
   },
   async (a) => {
@@ -102,7 +108,10 @@ server.registerTool(
     // silently mismatching its own caption. KaTeX_ stays allowed either way — the HTML
     // engine typesets math with it regardless of venue.
     const venue = resolveVenue(a.workspace)
-    const errors = lint({
+    // `meta` is spread whole, so an optional `fonts:` in meta.yaml reaches rule 13 and is
+    // APPENDED to the venue allowlist. A deliberate extra face is an input to that rule, not
+    // an escape from it — the rule still catches an undeclared silent fallback.
+    const result = lint({
       source: readFileSync(join(dir, engine === "mpl" ? "figure.py" : "figure.html"), "utf8"),
       meta: { ...meta, engine },
       data: JSON.parse(readFileSync(join(dir, "data.json"), "utf8")),
@@ -110,8 +119,9 @@ server.registerTool(
       mathFaces: venue.mathFaces,
       manifest: JSON.parse(readFileSync(bboxPath, "utf8")),
     })
-    const result = { passed: errors.length === 0, errors }
     writeFileSync(join(dir, "build", "lint.json"), JSON.stringify(result, null, 1))
+    // The full object, exemptions included: a waiver the agent claimed must be visible to it
+    // in the same breath as the failures, and figure_review is later asked to justify each.
     return text(JSON.stringify(result, null, 1))
   },
 )

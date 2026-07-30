@@ -200,6 +200,12 @@ export function arrow(fromSel, toSel, opts = {}) {
     }
     drawn.push({ points: result.points, width: stroke })
     const attrs = { d, "data-edge": "" }
+    // The declared escape, on the path itself. Rules 14 and 15 govern overlay paths, and an
+    // author cannot add an attribute to ink they did not write — so without this the one
+    // escape mechanism the spec defines is unreachable for exactly the two rules that need
+    // it most (a strikethrough, a stroke drawn across a label on purpose). Recorded in
+    // lint.json's `exemptions`, where figure_review is asked to justify it.
+    if (opts.intent) attrs["data-intent"] = opts.intent
     if (opts.head !== "none") attrs["marker-end"] = "url(#arrowhead)"
     if (opts.head === "both") attrs["marker-start"] = "url(#arrowhead)"
     ensureOverlay().appendChild(
@@ -241,10 +247,15 @@ export function edge(fromSel, waypoints, toSel, opts = {}) {
       at(to, opts.to ?? "left"),
     ]
     const stroke = strokeWidth()
+    // edge() draws EXACTLY what the author named — no clearance test, since explicit
+    // waypoints are the author overruling the router. That makes it the primitive most
+    // likely to cross a glyph deliberately, so it carries the same declared escape.
+    const attrs = { d: pathData(pts), "data-edge": "", "marker-end": "url(#arrowhead)" }
+    if (opts.intent) attrs["data-intent"] = opts.intent
     ensureOverlay().appendChild(
       el(
         "path",
-        { d: pathData(pts), "data-edge": "", "marker-end": "url(#arrowhead)" },
+        attrs,
         {
           fill: "none",
           stroke: toneColor(opts.tone),

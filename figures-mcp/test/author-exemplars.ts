@@ -261,7 +261,7 @@ for (const [name, out] of [
   const dir = join(ws, "figures", name)
   const meta = parseYaml(readFileSync(join(dir, "meta.yaml"), "utf8"))
   const engine: "html" | "mpl" = meta.engine === "mpl" ? "mpl" : "html"
-  const errors = lint({
+  const { errors } = lint({
     source: readFileSync(join(dir, engine === "mpl" ? "figure.py" : "figure.html"), "utf8"),
     meta: { ...meta, engine },
     data: JSON.parse(readFileSync(join(dir, "data.json"), "utf8")),

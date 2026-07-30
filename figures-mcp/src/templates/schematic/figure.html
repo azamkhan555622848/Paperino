@@ -7,20 +7,24 @@
     /* Layout only — colors/type/strokes come from tokens.css.
        Paper idiom: NO headline inside the figure (the caption explains, the figure
        shows); panels are labelled (a), (b) with .panel-label; every symbol goes in a
-       .math span. Rounded corners, shadows and UI fonts are lint failures. */
+       .math span. Rounded corners, shadows and UI fonts are lint failures.
+       Every box an edge connects carries data-node: that is what the router anchors to
+       and routes around, and an endpoint attached to nothing is lint rule 15.
+       Leave room for the arrow — an edge shorter than 3x its own arrowhead is a stub,
+       which the router reports as `edge-degenerate`. */
     #fig-root { display: flex; gap: 20px; padding: 12px; align-items: flex-start; }
-    .col { display: flex; flex-direction: column; gap: 10px; }
+    .col { display: flex; flex-direction: column; gap: 28px; }
   </style>
 </head>
 <body>
   <div id="fig-root">
     <div class="col">
       <span class="panel-label" id="panel-a">(a)</span>
-      <div class="card" id="box-a">
+      <div class="card" id="box-a" data-node>
         <h3>Stage A</h3>
         <p>Replace me — e.g. residual <span class="math">\Delta_{\mathrm{vec}}</span></p>
       </div>
-      <div class="card" id="box-b">
+      <div class="card" id="box-b" data-node>
         <h3>Stage B</h3>
         <p>Replace me</p>
       </div>
@@ -31,8 +35,12 @@
     import { arrow, brace, highlight, figReady } from "../lib/annot.js"
     // Math FIRST (glyph geometry must be final before anything is measured), then
     // annotations, then figReady. Structure in HTML above; never type coordinates.
+    //
+    // The router resolves the path from measured layout: it anchors on visible ink and
+    // clears every other [data-node] and every text rect. Name a port ("right:0.3") when
+    // two edges enter one box; `bow` is for an arc you actually want, not for dodging.
     await renderMath()
-    arrow("#box-a", "#box-b", { bow: 0.25 })
+    arrow("#box-a", "#box-b")
     figReady()
   </script>
 </body>
