@@ -104,7 +104,7 @@ try {
   }
 
   // bbox manifest: every visible text node + every SVG stroke width
-  const manifest = await page.evaluate(() => {
+  const manifest = await page.evaluate((engineArg) => {
     const cssPath = (node) => {
       if (node.id) return `#${node.id}`
       const parent = node.parentElement
@@ -165,9 +165,22 @@ try {
           // that mathtext lays out every glyph as a <tspan> with explicit x AND y, the same
           // absolute glyph positioning KaTeX does. Ordinary matplotlib labels are bare
           // <text> nodes with no tspans at all.
+          //
+          // `.katex-html`, not `.katex`: KaTeX injects BOTH, and only the -html subtree is
+          // rendered ink. Matching the outer wrapper let a hand-written `class="katex"` div
+          // buy provenance exemption for any number inside it — an author-forgeable escape
+          // from an absolute rule. The inner class is what renderMath() actually produces,
+          // and lint additionally rejects a literal `class="katex"` in the authored source.
           inKatex:
-            el.closest(".katex") !== null ||
+            el.closest(".katex-html") !== null ||
             (el.tagName === "tspan" && el.hasAttribute("x") && el.hasAttribute("y")),
+          // Which declared node this text lives in, so rule 14 can exclude an edge's OWN
+          // anchor glyphs. An ink-anchored tail starts ON its node's text edge, so its
+          // corridor always overlaps that text — a false positive on every correct figure.
+          node: (() => {
+            const owner = el.closest("[data-node]")
+            return owner ? (owner.id ? `#${owner.id}` : cssPath(owner)) : null
+          })(),
         })
       }
     }
@@ -208,8 +221,18 @@ try {
     // draws an arrow carries that marker, so this filter is what keeps rule 14 from
     // failing all of them for a stroke nobody drew.
     const paths = []
-    for (const p of document.querySelectorAll("#annot-overlay path")) {
+    // `line` and `polyline` too, and authored SVG outside the overlay: getTotalLength and
+    // getPointAtLength are SVGGeometryElement methods, so all three sample identically. A
+    // hand-drawn <line> through a label used to reach `strokes` (rule 6 saw its width) but
+    // never `paths`, so rule 14 could not see it cross anything.
+    //
+    // Skipped entirely for mpl. Rules 14 and 15 are HTML-engine rules (matplotlib positions
+    // its own strokes, and its spines sit within a few px of every tick label by design), so
+    // nothing consumes these — and a matplotlib chart has hundreds of paths, each of which
+    // would be sampled to as many as 400 points and written into bboxes.json for no reader.
+    for (const p of engineArg === "mpl" ? [] : document.querySelectorAll("svg path, svg line, svg polyline")) {
       if (p.closest("defs, marker, clipPath, mask, pattern, symbol")) continue
+      if (typeof p.getTotalLength !== "function") continue
       const total = p.getTotalLength()
       const steps = Math.min(400, Math.max(2, Math.ceil(total / 2)))
       const points = []
@@ -230,6 +253,11 @@ try {
             : p.hasAttribute("data-edge")
               ? "edge"
               : "other",
+        // The nodes this edge is anchored to. annot.js stamps them, and rule 14 uses them to
+        // skip the edge's own anchor text — the router already excludes it (obstaclesFor),
+        // and without the same exclusion in lint every ink-anchored arrow reports crossing
+        // the very glyphs it is attached to.
+        endpoints: [p.getAttribute("data-from"), p.getAttribute("data-to")].filter(Boolean),
       })
     }
 
@@ -244,7 +272,20 @@ try {
       return {
         selector: cssPath(el),
         rect: { x: r.x, y: r.y, w: r.width, h: r.height },
-        hasText: Boolean(el.textContent && el.textContent.trim()),
+        // RENDERED text, not textContent: a `display:none` span makes textContent non-empty
+        // while the box is visibly blank, which let an empty node pass rule 16. Ask for a
+        // client rect, which is what the reader actually sees.
+        hasText: (() => {
+          const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+          while (w.nextNode()) {
+            const tn = w.currentNode
+            if (!tn.textContent || !tn.textContent.trim()) continue
+            const range = document.createRange()
+            range.selectNodeContents(tn)
+            for (const rr of range.getClientRects()) if (rr.width > 0 && rr.height > 0) return true
+          }
+          return false
+        })(),
         intent: el.getAttribute("data-intent") ?? null,
       }
     })
@@ -262,7 +303,13 @@ try {
       // triples, so collapsing dashed into solid is what would make it match the wrong mark
       // and go quiet. Fall through on "none", not on emptiness.
       const dash = cs.strokeDasharray && cs.strokeDasharray !== "none" ? cs.strokeDasharray : cs.borderTopStyle || ""
-      return [cs.stroke !== "none" ? cs.stroke : (border ?? ""), dash, cs.backgroundColor].join("|")
+      // The spec names the triple (stroke, dash, FILL). An SVG swatch carries its colour in
+      // `fill`, not `backgroundColor` — reading only the latter gave every SVG mark the same
+      // transparent third component, so swatch and non-swatch triples collapsed together and
+      // rule 17 could not tell them apart.
+      const svg = el.ownerSVGElement !== null || el.tagName === "svg"
+      const body = svg && cs.fill && cs.fill !== "none" ? cs.fill : cs.backgroundColor
+      return [cs.stroke !== "none" ? cs.stroke : (border ?? ""), dash, body].join("|")
     }
     // A MARK is an element with no text that actually puts ink on the page — a stroke, a
     // border, or its own background. Collecting `body *` wholesale would sweep in every
@@ -271,6 +318,10 @@ try {
     const inked = (el) => {
       const cs = getComputedStyle(el)
       if (cs.stroke && cs.stroke !== "none") return true
+      // A FILLED SVG shape is ink. Without this an <rect fill="var(--accent)"> legend swatch
+      // was not collected at all, so it could neither be reported as an orphan nor validate
+      // one — rule 17 was simply dead for any legend drawn in SVG.
+      if ((el.ownerSVGElement !== null || el.tagName === "svg") && cs.fill && cs.fill !== "none") return true
       if (["Top", "Right", "Bottom", "Left"].some((s) => parseFloat(cs[`border${s}Width`]) > 0)) return true
       return Boolean(cs.backgroundColor) && cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== "transparent"
     }
@@ -306,7 +357,7 @@ try {
       intents,
       findings: window.__FIG_FINDINGS__ ?? [],
     }
-  })
+  }, engine)
 
   const contentHeight = Math.max(manifest.viewport.height, 100)
   await page.setViewportSize({ width, height: contentHeight })

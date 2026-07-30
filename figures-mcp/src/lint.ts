@@ -12,6 +12,8 @@ export type TextBox = {
   fontFamily: string
   /** Inside KaTeX output: exempt from the 7pt floor and from intra-formula overlap. */
   inKatex: boolean
+  /** Selector of the enclosing `[data-node]`, if any — lets rule 14 skip an edge's own anchor. */
+  node?: string | null
 }
 /** Elements carrying web chrome — rule 12. */
 export type ElementBox = { selector: string; borderRadius: number; boxShadow: string }
@@ -21,6 +23,8 @@ export type PathBox = {
   points: [number, number][]
   width: number
   kind: "edge" | "leader" | "dimension" | "other"
+  /** The nodes this edge anchors to (`data-from`/`data-to`), excluded from rule 14. */
+  endpoints?: string[]
 }
 /** An element claiming to be a diagram node (`data-node`) — rules 15 and 16. */
 export type NodeBox = {
@@ -335,12 +339,24 @@ export function lint(input: LintInput): LintResult {
   // A deliberate extra face is an INPUT to the allowlist, declared in meta.yaml — not an
   // escape from the rule. Naming one face still leaves every other face failing, which is
   // the silent-fallback case the rule exists for.
-  const allowed = [...(input.allowedFaces ?? SHIPPED_FACES), ...(input.meta.fonts ?? [])]
+  //
+  // Blank entries are dropped: `first.startsWith("")` is true for EVERY face, so a single
+  // `fonts: [""]` in meta.yaml switched this rule off entirely. An absolute rule must not
+  // have an off switch, least of all one an author reaches by leaving a list item empty.
+  const declaredFaces = (input.meta.fonts ?? []).map((f) => String(f).trim()).filter(Boolean)
+  const allowed = [...(input.allowedFaces ?? SHIPPED_FACES), ...declaredFaces]
   for (const t of texts) {
     const first = t.fontFamily.split(",")[0].trim().replace(/^["']|["']$/g, "")
     if (!allowed.some((a) => first.startsWith(a)))
       err("font-allowlist", t.selector, first, `one of: ${allowed.join(", ")}`)
   }
+
+  // Forged KaTeX. `inKatex` buys exemption from provenance, the 7pt floor and overlap — and
+  // KaTeX injects its own classes at RUNTIME, so an author never writes one. A literal
+  // `class="katex..."` in the authored source is therefore always an attempt to wrap plain
+  // text in a math exemption, which is a route around rule 8 rather than a style choice.
+  const forged = input.source.match(/class\s*=\s*["'][^"']*\bkatex(?:-html|-mathml)?\b/)
+  if (forged) err("forged-katex", "figure.html", forged[0], "let renderMath() emit KaTeX markup")
 
   const paths = input.manifest.paths ?? []
   const nodes = input.manifest.nodes ?? []
@@ -350,18 +366,35 @@ export function lint(input: LintInput): LintResult {
   //
   // A crossing is a defect in every visual idiom ever invented — no composition requires one
   // — but a strikethrough is real, so the escape is declared per path.
-  for (const p of paths) {
-    if (p.kind === "dimension") continue
-    const clearance = p.width / 2 + 2
-    const hit = texts.find((t) => {
-      if (inMath(t)) return false // KaTeX positions glyph boxes; its internals are not ink to route around
-      for (let i = 0; i + 1 < p.points.length; i++)
-        if (segmentHitsRect(p.points[i], p.points[i + 1], t.rect, clearance)) return true
-      return false
-    })
-    if (hit && !waived("stroke-over-text", p.selector))
-      err("stroke-over-text", p.selector, `crosses ${hit.selector} ("${hit.text.slice(0, 24)}")`, "route around text")
-  }
+  //
+  // Rules 14 and 15 are HTML-engine rules. matplotlib positions its own strokes and labels,
+  // and its spines run within a few px of every tick label by design — the same reasoning
+  // that exempts mpl from rule 9. An mpl annotation arrow crossing a label is a real gap,
+  // recorded rather than papered over with a rule that would fail every chart.
+  const geometryEngine = input.meta.engine !== "mpl"
+
+  // Math is NOT exempt. Rules 1/3/8 exempt KaTeX because its own layout engine positions
+  // glyph boxes relative to each other — that is about a formula's INTERNALS. A stroke
+  // crossing a formula is no different from a stroke crossing a word, and since rule 11
+  // forces every symbol in every figure into a .math span, exempting math here hid the most
+  // common form of the exact defect this rule was written for.
+  if (geometryEngine)
+    for (const p of paths) {
+      const clearance = p.width / 2 + 2
+      const own = new Set(p.endpoints ?? [])
+      const hit = texts.find((t) => {
+        // The edge's OWN anchor glyphs. An ink-anchored tail begins on its node's text edge,
+        // so its corridor necessarily overlaps that text; the router excludes both endpoint
+        // elements for the same reason (obstaclesFor). Without this every correctly-drawn
+        // arrow from a borderless node reports crossing the label it is attached to.
+        if (t.node && own.has(t.node)) return false
+        for (let i = 0; i + 1 < p.points.length; i++)
+          if (segmentHitsRect(p.points[i], p.points[i + 1], t.rect, clearance)) return true
+        return false
+      })
+      if (hit && !waived("stroke-over-text", p.selector))
+        err("stroke-over-text", p.selector, `crosses ${hit.selector} ("${hit.text.slice(0, 24)}")`, "route around text")
+    }
 
   // 15 dangling-edge: an endpoint attached to nothing — the 30px arc alone in a 30px gutter
   // that shipped in Fig. 2. A leader deliberately points at a region rather than a node, and
@@ -374,7 +407,7 @@ export function lint(input: LintInput): LintResult {
       const dy = Math.max(r.y - pt[1], 0, pt[1] - (r.y + r.h))
       return Math.hypot(dx, dy) <= NEAR
     })
-  for (const p of paths) {
+  for (const p of geometryEngine ? paths : []) {
     if (p.kind !== "edge" || p.points.length < 2) continue
     for (const pt of [p.points[0], p.points[p.points.length - 1]])
       if (!touchesANode(pt) && !waived("dangling-edge", p.selector))

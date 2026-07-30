@@ -209,3 +209,49 @@ test(
   },
   90_000,
 )
+
+// The v4 rule audit found four manifest-level blind spots. Each one made a rule that reads
+// the manifest unfireable, so they are verified against a REAL render, not a synthetic
+// manifest — a hand-written manifest would just restate the assumption that was wrong.
+test("the manifest sees what the rule audit found it was blind to", async () => {
+  const dir = await scaffoldFixture("v4-blindspots", {
+    body: [
+      // A node whose only text is display:none — visibly an empty box. hasText read
+      // textContent, so this passed rule 16.
+      '<div id="ghost" data-node style="border:1px solid #000;width:62px;height:42px">',
+      '  <span style="display:none">x</span></div>',
+      '<div id="src" data-node style="border:1px solid #000;padding:4px">Source</div>',
+      '<div id="dst" data-node style="border:1px solid #000;padding:4px;margin-top:90px">Target</div>',
+      // A legend drawn in SVG. inked() never tested fill, so a filled swatch was not
+      // collected at all and rule 17 could neither report nor validate it.
+      '<svg data-legend width="60" height="20" viewBox="0 0 60 20">',
+      '  <rect id="sw" x="0" y="0" width="20" height="8" style="fill:rgb(40,80,200)"></rect></svg>',
+      // A hand-drawn <line>. It reached manifest.strokes (rule 6 saw its width) but never
+      // manifest.paths, so rule 14 could not see it cross anything.
+      '<svg id="authored" width="120" height="20" viewBox="0 0 120 20">',
+      '  <line id="raw" x1="0" y1="10" x2="120" y2="10" style="stroke:#000;stroke-width:1"></line></svg>',
+    ].join("\n"),
+    script: 'arrow("#src", "#dst")',
+  })
+  const m = JSON.parse(readFileSync(join(dir, "build", "bboxes.json"), "utf8"))
+
+  // FN-4: a display:none span is not rendered text.
+  expect(m.nodes.find((n: any) => n.selector === "#ghost").hasText).toBe(false)
+  expect(m.nodes.find((n: any) => n.selector === "#src").hasText).toBe(true)
+
+  // FN-2: a filled SVG swatch is ink, and it is inside [data-legend].
+  const swatch = m.legend.find((l: any) => l.selector === "#sw")
+  expect(swatch).toBeDefined()
+  expect(swatch.inLegend).toBe(true)
+  expect(swatch.style).toContain("rgb(40, 80, 200)")
+
+  // FN-5: a <line> outside the overlay is sampled like any other geometry.
+  expect(m.paths.map((p: any) => p.selector)).toContain("#raw")
+
+  // The own-endpoint exclusion needs the edge to name its anchors.
+  const edge = m.paths.find((p: any) => p.kind === "edge")
+  expect(edge.endpoints).toEqual(["#src", "#dst"])
+
+  // And every text node reports which declared node it belongs to.
+  expect(m.texts.find((t: any) => t.text === "Source").node).toBe("#src")
+})

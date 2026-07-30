@@ -199,7 +199,11 @@ export function arrow(fromSel, toSel, opts = {}) {
       d = pathData(result.points)
     }
     drawn.push({ points: result.points, width: stroke })
-    const attrs = { d, "data-edge": "" }
+    // The nodes this edge anchors to, so rule 14 can exclude their own glyphs. An ink-anchored
+    // tail starts ON its node's text edge, so the corridor always overlaps that text — the
+    // router already excludes it (obstaclesFor skips both endpoint elements) and lint has to
+    // make the same exclusion, or every correctly-drawn arrow reports crossing its own anchor.
+    const attrs = { d, "data-edge": "", "data-from": fromSel, "data-to": toSel }
     // The declared escape, on the path itself. Rules 14 and 15 govern overlay paths, and an
     // author cannot add an attribute to ink they did not write — so without this the one
     // escape mechanism the spec defines is unreachable for exactly the two rules that need
@@ -250,7 +254,13 @@ export function edge(fromSel, waypoints, toSel, opts = {}) {
     // edge() draws EXACTLY what the author named — no clearance test, since explicit
     // waypoints are the author overruling the router. That makes it the primitive most
     // likely to cross a glyph deliberately, so it carries the same declared escape.
-    const attrs = { d: pathData(pts), "data-edge": "", "marker-end": "url(#arrowhead)" }
+    const attrs = {
+      d: pathData(pts),
+      "data-edge": "",
+      "marker-end": "url(#arrowhead)",
+      "data-from": fromSel,
+      "data-to": toSel,
+    }
     if (opts.intent) attrs["data-intent"] = opts.intent
     ensureOverlay().appendChild(
       el(

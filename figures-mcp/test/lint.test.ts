@@ -466,3 +466,131 @@ test("passed is false exactly when errors is non-empty", () => {
   expect(lint(ok({})).passed).toBe(true)
   expect(lint(ok({ manifest: { ...emptyManifest, findings: [{ rule: "edge-degenerate", selector: "#a -> #b", blocked: [] }] } })).passed).toBe(false)
 })
+
+// ---------------------------------------------------------------------------------------
+// Defects the v4 rule audit confirmed. Each of these passed lint before the fix, which is
+// exactly the failure mode the whole subsystem exists to prevent: a rule that reports clean
+// on the figure it was written for.
+// ---------------------------------------------------------------------------------------
+
+test("13 an empty entry in meta.fonts cannot switch the allowlist off", () => {
+  // `"".startsWith("")` is true for EVERY face, so one blank list item disabled rule 13
+  // entirely — an off switch on an ABSOLUTE rule, reachable by leaving a YAML item empty.
+  const segoe = box({ fontFamily: '"Segoe UI", sans-serif' })
+  const { errors } = lint(
+    base({
+      meta: { archetype: "schematic", caption: "c", alt: "a", claim: "x", fonts: ["", "   "] },
+      manifest: { viewport: { width: 528, height: 300 }, texts: [segoe], strokes: [], elements: [] },
+    }),
+  )
+  expect(errors.map((e) => e.rule)).toContain("font-allowlist")
+})
+
+test("13 a genuinely declared face is still accepted", () => {
+  const inter = box({ fontFamily: '"Inter", sans-serif' })
+  const { errors } = lint(
+    base({
+      meta: { archetype: "schematic", caption: "c", alt: "a", claim: "x", fonts: ["Inter"] },
+      manifest: { viewport: { width: 528, height: 300 }, texts: [inter], strokes: [], elements: [] },
+    }),
+  )
+  expect(errors.map((e) => e.rule)).not.toContain("font-allowlist")
+})
+
+test("a hand-written katex class is forgery, not markup", () => {
+  // inKatex buys exemption from provenance, the 7pt floor and overlap. KaTeX injects its
+  // classes at runtime, so an author never writes one — `class="katex"` around plain text
+  // was a route around rule 8.
+  const { errors } = lint(base({ source: `<div class="katex">512 experts</div>` }))
+  expect(errors.map((e) => e.rule)).toContain("forged-katex")
+})
+
+test("14 a stroke through a FORMULA is a crossing like any other", () => {
+  // Rules 1/3/8 exempt KaTeX because its layout engine positions glyph boxes relative to
+  // each other — that is about a formula's internals. Rule 14 exempting math meant that,
+  // since rule 11 forces every symbol into a .math span, the commonest form of the defect
+  // rule 14 exists for was invisible.
+  const formula = { ...textBox("#f", "D"), rect: { x: 100, y: 100, w: 40, h: 12 }, inKatex: true }
+  const { errors } = lint(
+    ok({
+      manifest: {
+        ...emptyManifest,
+        texts: [formula],
+        paths: [{ selector: "#p", points: [[80, 106], [200, 106]], width: 1, kind: "edge", endpoints: [] }],
+      },
+    }),
+  )
+  expect(errors.map((e) => e.rule)).toContain("stroke-over-text")
+})
+
+test("14 does not fail an edge for crossing its OWN anchor glyphs", () => {
+  // The false positive that would have blocked Task 8. An ink-anchored tail starts ON its
+  // node's text edge, so the corridor always overlaps that text. The router excludes both
+  // endpoint elements; lint has to make the same exclusion or every correct arrow from a
+  // borderless node reports crossing the label it is attached to.
+  const anchorText = { ...textBox("#evidence > strong", "Distortion profiles"), rect: { x: 100, y: 100, w: 90, h: 12 }, node: "#evidence" }
+  const { errors } = lint(
+    ok({
+      manifest: {
+        ...emptyManifest,
+        texts: [anchorText],
+        nodes: [{ selector: "#evidence", rect: { x: 100, y: 100, w: 90, h: 12 }, hasText: true, intent: null }],
+        paths: [
+          { selector: "#p", points: [[190, 106], [400, 106]], width: 1, kind: "edge", endpoints: ["#evidence", "#sink"] },
+        ],
+      },
+    }),
+  )
+  expect(errors.map((e) => e.rule)).not.toContain("stroke-over-text")
+})
+
+test("14 still fails that same edge when it crosses a DIFFERENT node's text", () => {
+  const own = { ...textBox("#evidence > strong", "Distortion"), rect: { x: 100, y: 100, w: 90, h: 12 }, node: "#evidence" }
+  const other = { ...textBox("#mid > strong", "Channel scores"), rect: { x: 240, y: 100, w: 90, h: 12 }, node: "#mid" }
+  const { errors } = lint(
+    ok({
+      manifest: {
+        ...emptyManifest,
+        texts: [own, other],
+        paths: [
+          { selector: "#p", points: [[190, 106], [400, 106]], width: 1, kind: "edge", endpoints: ["#evidence", "#sink"] },
+        ],
+      },
+    }),
+  )
+  expect(errors.map((e) => e.rule)).toContain("stroke-over-text")
+})
+
+test("14 a dimension line across a label is still a crossing", () => {
+  // kind === "dimension" used to skip rule 14 wholesale. dimension() draws at max(bottom)+gap,
+  // i.e. into the next row, so it can land straight through the label below it.
+  const label = { ...textBox("#l", "Latency budget"), rect: { x: 100, y: 100, w: 120, h: 12 } }
+  const { errors } = lint(
+    ok({
+      manifest: {
+        ...emptyManifest,
+        texts: [label],
+        paths: [{ selector: "#d", points: [[60, 106], [300, 106]], width: 1, kind: "dimension", endpoints: [] }],
+      },
+    }),
+  )
+  expect(errors.map((e) => e.rule)).toContain("stroke-over-text")
+})
+
+test("14 and 15 do not run on the mpl engine", () => {
+  // matplotlib positions its own strokes and labels, and its spines sit within a few px of
+  // every tick label by design — the same reasoning that exempts mpl from rule 9. Running
+  // these there would fail every chart.
+  const label = { ...textBox("#l", "8"), rect: { x: 100, y: 100, w: 10, h: 12 }, fontFamily: '"TeX Gyre Termes", serif' }
+  const { errors } = lint(
+    mpl({
+      manifest: {
+        ...emptyManifest,
+        texts: [label],
+        paths: [{ selector: "#spine", points: [[60, 106], [300, 106]], width: 1, kind: "edge", endpoints: [] }],
+      },
+    }),
+  )
+  expect(errors.map((e) => e.rule)).not.toContain("stroke-over-text")
+  expect(errors.map((e) => e.rule)).not.toContain("dangling-edge")
+})
