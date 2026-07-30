@@ -148,11 +148,69 @@ server.registerTool(
   },
 )
 
+/**
+ * The reference images are CRAFT references, not compositional targets. v2/v3 introduced them
+ * as "exemplars of the bar" and steered every figure toward them — which caps a figure at
+ * "similar to the reference" when the goal is "right for this claim". Composition is judged
+ * against the caption and the claim; the images only show how a paper figure is SET.
+ */
+export function buildRubric(
+  meta: { claim: string; caption: string; engine?: string },
+  exemptions: { rule: string; selector: string; reason: string }[],
+): string {
+  // An mpl author has no figure.html and no .math span, and a rubric that names the wrong
+  // file is an instruction to edit something that does not exist.
+  const source = meta.engine === "mpl" ? "figure.py" : "figure.html"
+  const mathHome = meta.engine === "mpl" ? "$…$ mathtext" : "a .math span"
+  const lines = [
+    `CLAIM this figure must demonstrate: "${meta.claim}"`,
+    `Caption: "${meta.caption}"`,
+    "",
+    "Review the FIRST image (the render) against the claim and caption. The other two images are",
+    "a craft reference — how a paper figure is set: stroke weights, type density, scale next to a",
+    "caption. Do NOT imitate their composition. A better composition for this claim is the goal.",
+    'Answer as JSON: {"demonstrates_claim": bool, "issues": [{"severity", "selector", "problem", "fix"}], "readable_at_50pct": bool}',
+    "",
+    "STRUCTURE",
+    "- Is there one dominant reading direction, and does the geometry state it?",
+    "- Does every edge leave and enter visible ink?",
+    "- Is each colour doing exactly one job? Identity and flow on the same hue reads as neither.",
+    "- Is any stroke present that carries no information?",
+    "- Is the element the caption is about the most salient thing?",
+    "- Is anything encoded twice (colour AND position for one variable)?",
+    "",
+    "EXECUTION",
+    "- Would a reviewer notice this was NOT made with TikZ/pgfplots? A web-app look = reject.",
+    `- Any pseudo-math (sigma_ch, x^2 as plain text)? Every symbol goes in ${mathHome}.`,
+    "- Minimal in-figure prose: the caption explains, the figure shows. Panels are (a), (b).",
+    "- Is this the RIGHT ENGINE? A plot drawn as boxes, or a diagram forced onto axes, is a",
+    "  wrong-engine failure: say so and re-scaffold on the other engine rather than patching.",
+    "- Would it survive at 50% scale? In greyscale?",
+  ]
+  if (exemptions.length) {
+    lines.push(
+      "",
+      "DECLARED EXEMPTIONS — each waived a lint rule. Judge whether the reason actually holds;",
+      "say so in `issues` if it does not:",
+      ...exemptions.map((e) => `- ${e.selector} waived ${e.rule}: "${e.reason}"`),
+    )
+  }
+  lines.push(
+    "",
+    `If issues remain, patch ${source} by selector and rerun figure_render + figure_lint.`,
+    "Max 4 iterations, then stop and surface to the user.",
+  )
+  return lines.join("\n")
+}
+
 server.registerTool(
   "figure_review",
   {
     description:
-      "Vision review. Returns the rendered PNG + the figure's claim + rubric + 2 exemplar figures. YOU review the image against the rubric and patch figure.html by selector. Hard cap: 4 review iterations per figure, then stop and show the user.",
+      "Vision review. Returns the rendered PNG + the figure's claim + a composition rubric + 2 " +
+      "craft references (how a paper figure is SET — not a composition to copy). YOU review the " +
+      "image against the rubric and patch the figure source by selector. Hard cap: 4 review " +
+      "iterations per figure, then stop and show the user.",
     inputSchema: { workspace: ws, name: figName },
   },
   async (a) => {
@@ -162,26 +220,13 @@ server.registerTool(
     const lintResult = JSON.parse(readFileSync(lintPath, "utf8"))
     if (!lintResult.passed) return text(`refused: lint has ${lintResult.errors.length} failure(s) — fix those first`)
     const meta = parse(readFileSync(join(dir, "meta.yaml"), "utf8"))
-    const rubric = [
-      `CLAIM this figure must demonstrate: "${meta.claim}"`,
-      `Caption: "${meta.caption}"`,
-      "",
-      "Review the FIRST image (the render). The other two images are exemplars of the bar:",
-      "publication figures that sit natively inside a LaTeX paper.",
-      'Answer as JSON: {"demonstrates_claim": bool, "issues": [{"severity", "selector", "problem", "fix"}], "readable_at_50pct": bool}',
-      "- Would a reviewer notice this was NOT made with TikZ/pgfplots? A web-app look (rounded cards, pill badges, UI fonts, drop shadows) = reject.",
-      "- Any pseudo-math (sigma_ch, x^2 as plain text)? Every symbol must be typeset in a .math span.",
-      "- Minimal in-figure prose: the caption explains, the figure shows. No headline inside the figure; panels are (a), (b).",
-      "- Is this the RIGHT ENGINE? A plot drawn as boxes, or a diagram forced onto axes, is a " +
-        "wrong-engine failure: say so and re-scaffold on the other engine rather than patching this one.",
-      "- Is the element the caption is about the most salient thing?",
-      "- Is anything encoded twice (color + position for the same variable)?",
-      "- Would it survive at 50% scale? In grayscale?",
-      "If issues remain, patch figure.html by selector and rerun figure_render + figure_lint. Max 4 iterations, then stop and surface to the user.",
-    ].join("\n")
-    // Exemplars are the bar the model steers toward, so they must match the engine. Showing
-    // a matplotlib chart the four-bar div exemplar would steer it back into exactly the
-    // ceiling this engine exists to escape.
+    // Every waiver the linter granted is replayed to the reviewer: a rule silenced by a
+    // `data-intent` is exactly the thing no deterministic check is left guarding, so the one
+    // judge that can weigh the reason has to see it.
+    const rubric = buildRubric(meta, lintResult.exemptions ?? [])
+    // The craft references must still match the engine. Showing a matplotlib chart the
+    // four-bar div reference would steer its execution back into exactly the ceiling this
+    // engine exists to escape.
     const exemplars =
       meta.engine === "mpl"
         ? ["exemplar-chart-mpl.png", "exemplar-schematic.png"]
