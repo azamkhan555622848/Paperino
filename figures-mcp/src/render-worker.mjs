@@ -193,13 +193,119 @@ try {
         elements.push({ selector: cssPath(el), borderRadius: radius, boxShadow: shadow })
     }
 
+    // Overlay path GEOMETRY, not just stroke width. Rules 14 and 15 ask where a stroke
+    // went, and the v3 manifest could only say how thick it was — which is why an arrow
+    // through a text block linted clean.
+    //
+    // getPointAtLength handles every path type uniformly, so a bowed quadratic and a
+    // mitred polyline are sampled the same way. 2px steps, capped, keeps a long detour
+    // from producing thousands of points.
+    //
+    // A path inside <defs> is a DEFINITION, not ink. The arrowhead <marker> every arrow
+    // points at holds one, in marker coordinate space at the page origin — sampled as a
+    // real path it reports a stroke from (0,0.5) to (0,7.5), which rule 14 then reads as
+    // crossing whatever glyph sits in the figure's top-left corner. Every figure that
+    // draws an arrow carries that marker, so this filter is what keeps rule 14 from
+    // failing all of them for a stroke nobody drew.
+    const paths = []
+    for (const p of document.querySelectorAll("#annot-overlay path")) {
+      if (p.closest("defs, marker, clipPath, mask, pattern, symbol")) continue
+      const total = p.getTotalLength()
+      const steps = Math.min(400, Math.max(2, Math.ceil(total / 2)))
+      const points = []
+      for (let i = 0; i <= steps; i++) {
+        const pt = p.getPointAtLength((total * i) / steps)
+        points.push([pt.x, pt.y])
+      }
+      const cs = getComputedStyle(p)
+      paths.push({
+        selector: cssPath(p),
+        points,
+        width: parseFloat(cs.strokeWidth) || 0,
+        // A leader deliberately ends in open space; rule 15 must not fail it.
+        kind: p.hasAttribute("data-leader")
+          ? "leader"
+          : p.hasAttribute("data-dimension")
+            ? "dimension"
+            : p.hasAttribute("data-edge")
+              ? "edge"
+              : "other",
+      })
+    }
+
+    // Declared nodes. Rule 16 needs to know what CLAIMS to be a node, and rule 15 needs
+    // their boundaries to decide whether an endpoint is attached to anything at all.
+    //
+    // The LAYOUT box, not annot.js's ink rect: a borderless node's ink rect is its text
+    // union, which sits strictly inside the box, so the layout box is the permissive of the
+    // two and an endpoint anchored to either one lands inside it.
+    const nodes = Array.from(document.querySelectorAll("[data-node]")).map((el) => {
+      const r = el.getBoundingClientRect()
+      return {
+        selector: cssPath(el),
+        rect: { x: r.x, y: r.y, w: r.width, h: r.height },
+        hasText: Boolean(el.textContent && el.textContent.trim()),
+        intent: el.getAttribute("data-intent") ?? null,
+      }
+    })
+
+    // Legend swatches vs every other mark, for rule 17. The style triple is what a reader
+    // matches by eye: colour, dash pattern, fill.
+    const markStyle = (el) => {
+      const cs = getComputedStyle(el)
+      const border = ["Top", "Right", "Bottom", "Left"]
+        .map((s) => (parseFloat(cs[`border${s}Width`]) > 0 ? cs[`border${s}Color`] : null))
+        .find(Boolean)
+      // stroke-dasharray computes to the string "none" on an HTML element, which is TRUTHY —
+      // so `cs.strokeDasharray || cs.borderTopStyle` never reaches the border style, and a
+      // dashed HTML swatch got the same triple as a solid HTML mark. Rule 17 compares these
+      // triples, so collapsing dashed into solid is what would make it match the wrong mark
+      // and go quiet. Fall through on "none", not on emptiness.
+      const dash = cs.strokeDasharray && cs.strokeDasharray !== "none" ? cs.strokeDasharray : cs.borderTopStyle || ""
+      return [cs.stroke !== "none" ? cs.stroke : (border ?? ""), dash, cs.backgroundColor].join("|")
+    }
+    // A MARK is an element with no text that actually puts ink on the page — a stroke, a
+    // border, or its own background. Collecting `body *` wholesale would sweep in every
+    // transparent layout wrapper, and a wrapper's style triple would then "match" a legend
+    // swatch by accident, making rule 17 unfireable.
+    const inked = (el) => {
+      const cs = getComputedStyle(el)
+      if (cs.stroke && cs.stroke !== "none") return true
+      if (["Top", "Right", "Bottom", "Left"].some((s) => parseFloat(cs[`border${s}Width`]) > 0)) return true
+      return Boolean(cs.backgroundColor) && cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== "transparent"
+    }
+    const legend = []
+    for (const el of document.querySelectorAll("#annot-overlay *, body *")) {
+      const r = el.getBoundingClientRect()
+      if (!r.width || !r.height) continue
+      if (el.textContent && el.textContent.trim()) continue // a swatch is ink, not a word
+      if (!inked(el)) continue
+      legend.push({ selector: cssPath(el), style: markStyle(el), inLegend: el.closest("[data-legend]") !== null })
+    }
+
+    // Every claimed exemption, so lint can honour it AND report it for review to question.
+    const intents = Array.from(document.querySelectorAll("[data-intent]")).map((el) => ({
+      selector: cssPath(el),
+      reason: el.getAttribute("data-intent") ?? "",
+    }))
+
     // The overlay is stretched to the initial viewport, so scrollHeight would pin the
     // page at 800px and pad the figure with dead space. Measure the real content.
     const content = Array.from(document.body.children)
       .filter((el) => el.id !== "annot-overlay")
       .reduce((max, el) => Math.max(max, el.getBoundingClientRect().bottom), 0)
     const height = Math.ceil(Math.max(content, 100))
-    return { viewport: { width: window.innerWidth, height }, texts, strokes, elements }
+    return {
+      viewport: { width: window.innerWidth, height },
+      texts,
+      strokes,
+      elements,
+      paths,
+      nodes,
+      legend,
+      intents,
+      findings: window.__FIG_FINDINGS__ ?? [],
+    }
   })
 
   const contentHeight = Math.max(manifest.viewport.height, 100)
