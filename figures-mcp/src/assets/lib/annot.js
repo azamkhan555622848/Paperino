@@ -1,9 +1,18 @@
-// Declarative annotations anchored to element IDs. One absolutely-positioned SVG
-// overlay; geometry resolved at render time from getBoundingClientRect().
-// The agent supplies IDs and one scalar (bow) — never a coordinate.
+// paperino-annot v4.0
+// Declarative annotations anchored to element IDs. One absolutely-positioned SVG overlay;
+// geometry resolved at render time from getBoundingClientRect().
+//
+// v4: the author names PORTS and the router solves the ROUTE. Previously an arrow resolved
+// two endpoints and knew nothing else, so `bow` was the only control over its path — and
+// its correct value depends on a rect the authoring model cannot see. That is how an arrow
+// came to cross the words "Reconstruction-distortion profiles" in a shipped paper.
 //
 // Colors/strokes are applied through inline STYLE, not presentation attributes:
 // SVG attributes do not resolve CSS var(), only CSS declarations do.
+//
+// route.js is GENERATED from src/route.ts (scripts/build-lib.ts), so this file and
+// test/route.test.ts exercise one implementation of the geometry rather than two.
+import { anchorAt, parsePort, pathData, pickPlacement, routePath } from "./route.js"
 
 const queue = []
 let overlay
@@ -38,23 +47,8 @@ const toneColor = (tone) =>
     ref: "var(--border-strong)",
   })[tone] ?? "var(--border-strong)"
 
-function anchor(rect, side) {
-  const cx = rect.left + rect.width / 2
-  const cy = rect.top + rect.height / 2
-  if (side === "top") return [cx, rect.top]
-  if (side === "bottom") return [cx, rect.bottom]
-  if (side === "left") return [rect.left, cy]
-  if (side === "right") return [rect.right, cy]
-  return [cx, cy]
-}
-
-function autoSides(a, b) {
-  const dx = b.left + b.width / 2 - (a.left + a.width / 2)
-  const dy = b.top + b.height / 2 - (a.top + a.height / 2)
-  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? ["right", "left"] : ["left", "right"]
-  return dy > 0 ? ["bottom", "top"] : ["top", "bottom"]
-}
-
+// v3 spelled a pinned anchor `side`, and it pinned BOTH ends. Ports supersede it, but the old
+// spelling keeps working: a figure written against v3 must not silently re-route.
 const opposite = { left: "right", right: "left", top: "bottom", bottom: "top" }
 
 function el(name, attrs, styles = {}) {
@@ -64,29 +58,317 @@ function el(name, attrs, styles = {}) {
   return node
 }
 
+/** The figure's stroke weight, in px. Clearance and lane width are both derived from it. */
+const strokeWidth = () => parseFloat(getComputedStyle(document.body).getPropertyValue("--stroke")) || 1
+
+/** Union of an element's own text client rects, or null when it renders no glyphs. */
+function textUnion(elm) {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  const walker = document.createTreeWalker(elm, NodeFilter.SHOW_TEXT)
+  while (walker.nextNode()) {
+    const tn = walker.currentNode
+    if (!tn.textContent || !tn.textContent.trim()) continue
+    // KaTeX's MathML twin is clipped rather than display:none, so it still has client rects.
+    // It is not ink, and including it would put the ink boundary where no glyph is drawn.
+    if (tn.parentElement?.closest(".katex-mathml")) continue
+    const range = document.createRange()
+    range.selectNodeContents(tn)
+    for (const r of range.getClientRects()) {
+      if (!r.width || !r.height) continue
+      minX = Math.min(minX, r.x)
+      minY = Math.min(minY, r.y)
+      maxX = Math.max(maxX, r.right)
+      maxY = Math.max(maxY, r.bottom)
+    }
+  }
+  return Number.isFinite(minX) ? { x: minX, y: minY, w: maxX - minX, h: maxY - minY } : null
+}
+
+/**
+ * The VISIBLE rect, not the layout box, resolved PER SIDE. `.evidence` carries only
+ * `border-left`, so its layout `right` edge sits at the column boundary with no ink anywhere
+ * near it — which is why v3's arrows appeared to start in an empty gutter. An edge with no
+ * border falls back to the element's own glyphs.
+ *
+ * "Filled" means a background distinct FROM THE PAGE: `.card` paints itself `--bg`, the page
+ * colour, so its background is not ink — its border is. Testing only for non-transparency
+ * would anchor a white-on-white box to an invisible edge, which is the bug this fixes.
+ */
+function inkRect(elm) {
+  const cs = getComputedStyle(elm)
+  const box = elm.getBoundingClientRect()
+  const rect = { x: box.x, y: box.y, w: box.width, h: box.height }
+  const bordered = (s) => parseFloat(cs[`border${s}Width`]) > 0 && cs[`border${s}Style`] !== "none"
+  const own = cs.backgroundColor
+  const page = getComputedStyle(document.body).backgroundColor
+  const filled = Boolean(own) && own !== "rgba(0, 0, 0, 0)" && own !== "transparent" && own !== page
+  if (filled || ["Top", "Right", "Bottom", "Left"].every(bordered)) return rect
+  const text = textUnion(elm)
+  if (!text) return rect
+  const left = bordered("Left") ? rect.x : text.x
+  const top = bordered("Top") ? rect.y : text.y
+  const right = bordered("Right") ? rect.x + rect.w : text.x + text.w
+  const bottom = bordered("Bottom") ? rect.y + rect.h : text.y + text.h
+  return { x: left, y: top, w: Math.max(right - left, 0), h: Math.max(bottom - top, 0) }
+}
+
+const need = (sel, who) => {
+  const elm = document.querySelector(sel)
+  if (!elm) throw new Error(`${who}: missing element ${sel}`)
+  return elm
+}
+
+/** Every declared node except the two endpoints, plus every text rect. */
+function obstaclesFor(exclude) {
+  // An ancestor or a descendant of an endpoint is not "in the way" of an edge that starts on
+  // that endpoint's own boundary — it contains the anchor, so it would block every candidate.
+  const related = (elm) => exclude.some((ex) => ex === elm || ex.contains(elm) || elm.contains(ex))
+  const nodes = []
+  for (const elm of document.querySelectorAll("[data-node]")) {
+    if (related(elm)) continue
+    const r = inkRect(elm)
+    if (r.w > 0 && r.h > 0) nodes.push({ selector: elm.id ? `#${elm.id}` : "[data-node]", rect: r })
+  }
+  const textRects = []
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  while (walker.nextNode()) {
+    const tn = walker.currentNode
+    if (!tn.textContent || !tn.textContent.trim()) continue
+    const parent = tn.parentElement
+    if (!parent) continue
+    if (parent.closest("#annot-overlay, .katex-mathml")) continue
+    // An endpoint's OWN glyphs are not an obstacle for its own edge. A borderless node's ink
+    // rect IS its text union, so the anchor lands exactly on that rect and EVERY candidate
+    // route would score as blocked before it had gone anywhere.
+    if (related(parent)) continue
+    const range = document.createRange()
+    range.selectNodeContents(tn)
+    for (const r of range.getClientRects())
+      if (r.width && r.height) textRects.push({ x: r.x, y: r.y, w: r.width, h: r.height })
+  }
+  return { nodes, textRects }
+}
+
+// Corridors drawn so far this figure, so parallel edges separate into lanes.
+const drawn = []
+// Findings the router produced. render-worker reads these off window and lint turns them
+// into rules 14/15 — a blocked route must not be silent, and must not abort the render
+// either: a throw leaves the model with no picture to look at and nothing to act on.
+const findings = []
+
 export function arrow(fromSel, toSel, opts = {}) {
   queue.push(() => {
-    const a = document.querySelector(fromSel)?.getBoundingClientRect()
-    const b = document.querySelector(toSel)?.getBoundingClientRect()
-    if (!a || !b) throw new Error(`arrow: missing element ${!a ? fromSel : toSel}`)
-    const [sideA, sideB] = opts.side ? [opts.side, opposite[opts.side]] : autoSides(a, b)
-    const [x1, y1] = anchor(a, sideA)
-    const [x2, y2] = anchor(b, sideB)
-    // bow: signed swoop as a fraction of segment length; the control point is the
-    // midpoint pushed along the perpendicular. One scalar an LLM can reason about.
-    const bow = opts.bow ?? 0.25
-    const mx = (x1 + x2) / 2
-    const my = (y1 + y2) / 2
-    const len = Math.hypot(x2 - x1, y2 - y1) || 1
-    const px = (-(y2 - y1) / len) * bow * len
-    const py = ((x2 - x1) / len) * bow * len
+    const fromEl = need(fromSel, "arrow")
+    const toEl = need(toSel, "arrow")
+    const from = inkRect(fromEl)
+    const to = inkRect(toEl)
+    const { nodes, textRects } = obstaclesFor([fromEl, toEl])
+    const stroke = strokeWidth()
+    const result = routePath({
+      from,
+      to,
+      portFrom: opts.port ?? opts.side,
+      portTo: opts.to ?? (opts.side ? opposite[opts.side] : undefined),
+      obstacles: nodes,
+      textRects,
+      clearance: stroke / 2 + 2,
+      mode: opts.route ?? "auto",
+      lanes: drawn,
+      strokeWidth: stroke,
+    })
+    if (result.kind === "blocked")
+      findings.push({ rule: "edge-unroutable", selector: `${fromSel} -> ${toSel}`, blocked: result.blocked })
+    if (result.degenerate)
+      findings.push({ rule: "edge-degenerate", selector: `${fromSel} -> ${toSel}`, blocked: [] })
+
+    // A straight two-point route may still be BOWED on purpose: a feedback edge in a
+    // recurrent architecture reads better as an arc. bow is retained for exactly that, and
+    // is no longer what obstacle avoidance depends on, so a wrong value can no longer
+    // produce a crossing — the router already cleared this geometry.
+    let d
+    if (result.points.length === 2 && opts.bow) {
+      const [[x1, y1], [x2, y2]] = result.points
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1
+      const mx = (x1 + x2) / 2 + (-(y2 - y1) / len) * opts.bow * len
+      const my = (y1 + y2) / 2 + ((x2 - x1) / len) * opts.bow * len
+      d = `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`
+    } else {
+      d = pathData(result.points)
+    }
+    drawn.push({ points: result.points, width: stroke })
+    const attrs = { d, "data-edge": "" }
+    if (opts.head !== "none") attrs["marker-end"] = "url(#arrowhead)"
+    if (opts.head === "both") attrs["marker-start"] = "url(#arrowhead)"
+    ensureOverlay().appendChild(
+      el("path", attrs, {
+        fill: "none",
+        stroke: toneColor(opts.tone),
+        "stroke-width": "var(--stroke)",
+        "stroke-dasharray": opts.style === "dashed" ? "5 4" : "none",
+      }),
+    )
+  })
+}
+
+/** A polyline through explicit waypoints — selectors, or [fx, fy] fractions of the figure box. */
+export function edge(fromSel, waypoints, toSel, opts = {}) {
+  queue.push(() => {
+    const from = inkRect(need(fromSel, "edge"))
+    const to = inkRect(need(toSel, "edge"))
+    // Resolved LAZILY: a figure with no fractional waypoint needs no #fig-root, and when one
+    // is needed its absence must name itself rather than surface as "of undefined".
+    let figBox = null
+    const fig = () => (figBox ??= need("#fig-root", "edge").getBoundingClientRect())
+    // Destructured explicitly: Object.values() on parsePort's result would depend on key
+    // insertion order, so adding a field to that return type would silently reorder the args.
+    const at = (r, port) => {
+      const { side, fraction } = parsePort(port)
+      return anchorAt(r, side, fraction)
+    }
+    const pts = [
+      at(from, opts.port ?? "right"),
+      ...waypoints.map((w) => {
+        if (typeof w === "string") {
+          const r = inkRect(need(w, "edge"))
+          return [r.x + r.w / 2, r.y + r.h / 2]
+        }
+        const box = fig()
+        return [box.x + box.width * w[0], box.y + box.height * w[1]]
+      }),
+      at(to, opts.to ?? "left"),
+    ]
+    const stroke = strokeWidth()
     ensureOverlay().appendChild(
       el(
         "path",
-        { d: `M ${x1} ${y1} Q ${mx + px} ${my + py} ${x2} ${y2}`, "marker-end": "url(#arrowhead)" },
-        { fill: "none", stroke: toneColor(opts.tone), "stroke-width": "var(--stroke)" },
+        { d: pathData(pts), "data-edge": "", "marker-end": "url(#arrowhead)" },
+        {
+          fill: "none",
+          stroke: toneColor(opts.tone),
+          "stroke-width": "var(--stroke)",
+          "stroke-dasharray": opts.style === "dashed" ? "5 4" : "none",
+        },
       ),
     )
+    drawn.push({ points: pts, width: stroke })
+  })
+}
+
+/** One source, many targets. Ports are distributed along the source side so the edges fan. */
+export function fan(fromSel, targetSels, opts = {}) {
+  const side = opts.port ?? "right"
+  targetSels.forEach((t, i) => {
+    const fraction = (i + 1) / (targetSels.length + 1)
+    arrow(fromSel, t, { ...opts, port: `${side}:${fraction.toFixed(3)}` })
+  })
+}
+
+/** Absolute-position an element near another without overlapping anything. */
+export function place(sel, opts = {}) {
+  queue.push(() => {
+    const target = need(sel, "place")
+    const near = inkRect(need(opts.near, "place"))
+    const size = target.getBoundingClientRect()
+    const { nodes, textRects } = obstaclesFor([target])
+    const avoid = [...nodes.map((n) => n.rect), ...textRects]
+    const spot = pickPlacement({ w: size.width, h: size.height }, near, avoid, opts.gap ?? 6)
+    if (!spot) {
+      findings.push({ rule: "placement-blocked", selector: sel, blocked: [opts.near] })
+      return
+    }
+    // left/top resolve against the OFFSET PARENT's padding box, which is not necessarily the
+    // body: a figure whose #fig-root is positioned makes that the containing block, and
+    // measuring against body would then offset every placement by fig-root's origin.
+    target.style.position = "absolute"
+    document.body.style.position = "relative"
+    const host = target.offsetParent ?? document.body
+    const hostBox = host.getBoundingClientRect()
+    const hostStyle = getComputedStyle(host)
+    target.style.left = `${spot.x - hostBox.x - (parseFloat(hostStyle.borderLeftWidth) || 0)}px`
+    target.style.top = `${spot.y - hostBox.y - (parseFloat(hostStyle.borderTopWidth) || 0)}px`
+  })
+}
+
+/**
+ * A callout with an optional leader line. `place` is the side of the anchor it sits on
+ * (right|left|top|bottom, default right). The leader deliberately ends in open space, which
+ * is why the manifest tags it `data-leader` and rule 15 does not treat it as a dangling edge.
+ */
+export function label(sel, text, opts = {}) {
+  queue.push(() => {
+    const r = inkRect(need(sel, "label"))
+    const gap = opts.gap ?? 10
+    const side = opts.place ?? "right"
+    const midX = r.x + r.w / 2
+    const midY = r.y + r.h / 2
+    // [x, y, text-anchor, dominant-baseline, leader start, leader end]. The baseline is per
+    // side so the text clears its own leader instead of sitting on top of it.
+    const spot = {
+      right: [r.x + r.w + gap, midY, "start", "middle", [r.x + r.w, midY], [r.x + r.w + gap - 2, midY]],
+      left: [r.x - gap, midY, "end", "middle", [r.x, midY], [r.x - gap + 2, midY]],
+      top: [midX, r.y - gap, "middle", "auto", [midX, r.y], [midX, r.y - gap + 2]],
+      bottom: [midX, r.y + r.h + gap, "middle", "hanging", [midX, r.y + r.h], [midX, r.y + r.h + gap - 2]],
+    }[side]
+    if (!spot) throw new Error(`label: unknown place "${side}" (use right|left|top|bottom)`)
+    const [x, y, textAnchor, baseline, leaderFrom, leaderTo] = spot
+    const ov = ensureOverlay()
+    const t = el(
+      "text",
+      { x, y, "text-anchor": textAnchor, "dominant-baseline": baseline, "data-label": "" },
+      { fill: "var(--text)", "font-size": "var(--fs-label)", "font-family": "var(--font-text)" },
+    )
+    t.textContent = text
+    ov.appendChild(t)
+    if (opts.leader)
+      ov.appendChild(
+        el(
+          "path",
+          { d: pathData([leaderFrom, leaderTo]), "data-leader": "" },
+          { fill: "none", stroke: toneColor(opts.tone), "stroke-width": "var(--stroke)" },
+        ),
+      )
+  })
+}
+
+/** A measured span with end ticks — "4096 dims" under a block, IEEE style. */
+export function dimension(aSel, bSel, opts = {}) {
+  queue.push(() => {
+    const a = inkRect(need(aSel, "dimension"))
+    const b = inkRect(need(bSel, "dimension"))
+    const gap = opts.gap ?? 10
+    const above = opts.side === "top"
+    const y = above ? Math.min(a.y, b.y) - gap : Math.max(a.y + a.h, b.y + b.h) + gap
+    const x1 = Math.min(a.x, b.x)
+    const x2 = Math.max(a.x + a.w, b.x + b.w)
+    const tick = 4
+    const ov = ensureOverlay()
+    ov.appendChild(
+      el(
+        "path",
+        {
+          d: `M ${x1} ${y - tick} L ${x1} ${y + tick} M ${x1} ${y} L ${x2} ${y} M ${x2} ${y - tick} L ${x2} ${y + tick}`,
+          "data-dimension": "",
+        },
+        { fill: "none", stroke: toneColor(opts.tone ?? "ref"), "stroke-width": "var(--stroke)" },
+      ),
+    )
+    if (opts.text) {
+      const t = el(
+        "text",
+        {
+          x: (x1 + x2) / 2,
+          y: above ? y - tick - 4 : y + tick + 4,
+          "text-anchor": "middle",
+          "dominant-baseline": above ? "auto" : "hanging",
+        },
+        { fill: "var(--text-muted)", "font-size": "var(--fs-small)", "font-family": "var(--font-text)" },
+      )
+      t.textContent = opts.text
+      ov.appendChild(t)
+    }
   })
 }
 
@@ -164,6 +446,9 @@ export function figReady() {
     requestAnimationFrame(() => {
       try {
         for (const draw of queue) draw()
+        // What the router could not solve, published for the manifest to carry into lint.
+        // Reported, never thrown: the model must always get a render to look at.
+        window.__FIG_FINDINGS__ = findings
         window.__FIG_READY__ = true
       } catch (err) {
         window.__FIG_ERROR__ = String(err)
