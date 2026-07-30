@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    /* A BLANK CANVAS, on purpose. Compose the structure this figure needs — there is
+       nothing here to fill in, because a mould is what makes every figure look alike.
+       Ask for a starting point with figure_scaffold's `from` only if you want one.
+
+       Layout is yours. tokens.css owns colour, type and stroke — never restate them here:
+       a literal colour value anywhere in this file is rule 5 (no-raw-color), even inside a
+       comment, and a face we did not vendor is rule 13. Square corners, no shadows, no UI
+       fonts. Every symbol goes in a .math span and is typeset by renderMath(); written as
+       plain text it is rule 11.
+
+       THREE ATTRIBUTES CARRY MEANING TO THE LINTER. They are the API, not decoration:
+
+       data-node   on EVERY box you will connect. It is what arrow()/edge()/fan() anchor
+                   to — on the box's visible INK, not its layout rect — and what the
+                   router routes AROUND. Rule 15 (dangling-edge) checks that both ends of
+                   every path land on one. A node with no text is rule 16 (empty-node), so
+                   never draw a small empty square to manufacture an anchor: name a port
+                   ("left:0.3") on the real box instead.
+
+       data-legend on the legend container, when the figure has a legend. Rule 17
+                   (orphan-legend) can only check a legend it can FIND; an unmarked legend
+                   is simply unchecked, and will happily describe a mark that is not in
+                   the figure — a false statement about your own figure.
+
+       data-intent on an element or a path: the declared escape, carrying the reason.
+                   Use it for a style rule you broke deliberately (a rounded block, a
+                   stroke drawn across a label, a genuinely textless node). It is recorded
+                   in lint.json under `exemptions` and figure_review is asked whether the
+                   reason actually holds. It can NEVER waive overflow, min-type-size,
+                   provenance or font-allowlist — two are honesty and two are physics, and
+                   declaring one of them is itself the error `intent-not-permitted`. */
+    #fig-root { padding: 10px 12px; }
+  </style>
+</head>
+<body>
+  <div id="fig-root"></div>
+  <script type="module">
+    import { renderMath } from "../lib/math.js"
+    import { arrow, edge, fan, place, label, dimension, brace, highlight, figReady } from "../lib/annot.js"
+    // Math FIRST (glyph geometry must be final before anything is measured), then the
+    // annotations, then figReady() last. You never type a coordinate: name the endpoints
+    // and the router resolves the path from the measured layout.
+    await renderMath()
+    figReady()
+  </script>
+</body>
+</html>

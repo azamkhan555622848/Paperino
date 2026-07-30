@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { mkdirSync, rmSync } from "node:fs"
+import { mkdirSync, readFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { connect } from "./client"
 
@@ -26,10 +26,18 @@ test(
     mkdirSync(WS, { recursive: true })
     const { client, close } = await connect()
     try {
-      await client.callTool({
+      const scaffolded = await client.callTool({
         name: "figure_scaffold",
         arguments: { workspace: WS, name: "fig-x", archetype: "schematic", claim: "A precedes B", caption: "cap", width: "narrow" },
       })
+      // The catalogue must survive the trip over MCP: it is the only place the agent is told
+      // what the surface is, and a blank canvas with no catalogue is a blank canvas with no
+      // API. `data-legend` in particular existed nowhere an author could read it.
+      const scaffoldText = (scaffolded.content as any[]).find((c) => c.type === "text").text
+      expect(scaffoldText).toContain("data-legend")
+      expect(scaffoldText).toContain("arrow(")
+      // ...and the default really is the canvas, end to end, not just in scaffold()'s unit test.
+      expect(readFileSync(join(WS, "figures", "fig-x", "figure.html"), "utf8")).not.toContain("panel-label")
       const rendered = await client.callTool({ name: "figure_render", arguments: { workspace: WS, name: "fig-x" } })
       expect(JSON.stringify(rendered.content)).toContain("png")
 

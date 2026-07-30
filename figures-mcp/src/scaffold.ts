@@ -13,6 +13,10 @@ const ASSETS = join(HERE, "assets")
 const TEMPLATES = join(HERE, "templates")
 
 export type Archetype = "schematic" | "gallery" | "chart" | "table"
+/** What figure.html is seeded from. `canvas` is empty — the author composes. */
+export type TemplateName = "canvas" | Archetype
+const TEMPLATE_NAMES: readonly TemplateName[] = ["canvas", "schematic", "gallery", "chart", "table"]
+
 export type ScaffoldOpts = {
   name: string
   archetype: Archetype
@@ -24,6 +28,12 @@ export type ScaffoldOpts = {
    * the same 13 rules.
    */
   engine?: "html" | "mpl"
+  /**
+   * Optional STARTING POINT for figure.html. Absent means the blank canvas, which is what a
+   * figure specific to one claim usually wants. html engine only — the mpl engine has one
+   * template, figure.py, so `from` does not apply to it.
+   */
+  from?: TemplateName
   claim: string
   caption: string
   width: "narrow" | "full"
@@ -79,7 +89,16 @@ export async function scaffold(workspace: string, opts: ScaffoldOpts): Promise<{
     if (!existsSync(target) || markerOf(readFileSync(target, "utf8")) !== markerOf(shippedPy))
       writeFileSync(target, shippedPy)
   } else {
-    cpSync(join(TEMPLATES, opts.archetype, "figure.html"), join(figureDir, "figure.html"))
+    // A template is a starting point the author may ASK for, not a mould they must fill.
+    // Defaulting to one is what made every schematic a two-column plate of bordered cards
+    // with a panel label, whatever the figure actually needed — the archetype names the
+    // KIND of figure (it steers lint and review), not the shape it has to take.
+    const template = opts.from ?? "canvas"
+    // Checked rather than left to cpSync: the MCP tool's zod enum guards the agent's path,
+    // but a direct caller would otherwise get a bare ENOENT naming an internal directory.
+    if (!TEMPLATE_NAMES.includes(template))
+      throw new ScaffoldError(`unknown template "${template}" (use one of: ${TEMPLATE_NAMES.join(", ")})`)
+    cpSync(join(TEMPLATES, template, "figure.html"), join(figureDir, "figure.html"))
   }
   writeFileSync(join(figureDir, "data.json"), "{}\n")
   writeFileSync(

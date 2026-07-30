@@ -91,6 +91,40 @@ test("scaffold keeps an explicit alt", async () => {
   expect(meta.alt).toBe("A described for screen readers")
 })
 
+// A template is a starting point the author may ASK for, not a mould they must fill.
+// Defaulting to one is what made every schematic a two-column plate of .card boxes with a
+// panel label, whatever the figure actually needed.
+test("scaffold emits a blank canvas by default and a template only on request", async () => {
+  await scaffold(WS, { name: "plain", archetype: "schematic", claim: "k", caption: "c", width: "narrow" })
+  const html = readFileSync(join(WS, "figures", "plain", "figure.html"), "utf8")
+  expect(html).toContain('id="fig-root"')
+  expect(html).toContain("tokens.css")
+  expect(html).toContain("annot.js")
+  // No pre-built structure: the model composes. These are the schematic template's mould.
+  expect(html).not.toContain("panel-label")
+  expect(html).not.toContain('class="card"')
+
+  await scaffold(WS, { name: "tpl", archetype: "schematic", from: "schematic", claim: "k", caption: "c", width: "narrow" })
+  expect(readFileSync(join(WS, "figures", "tpl", "figure.html"), "utf8")).toContain("panel-label")
+})
+
+// data-legend appeared NOWHERE an author could read it — only in the worker line that reads
+// it and a type comment in lint.ts — so rule 17, which can fire only on a legend the author
+// marked, was dead in practice. The canvas is the first thing an author reads.
+test("the canvas names the three attributes the rules key off", async () => {
+  await scaffold(WS, { name: "attrs", archetype: "schematic", claim: "k", caption: "c", width: "narrow" })
+  const html = readFileSync(join(WS, "figures", "attrs", "figure.html"), "utf8")
+  for (const attr of ["data-node", "data-legend", "data-intent"]) expect(html).toContain(attr)
+})
+
+test("from: canvas is the default spelled out", async () => {
+  await scaffold(WS, { name: "explicit", archetype: "chart", from: "canvas", claim: "k", caption: "c", width: "narrow" })
+  await scaffold(WS, { name: "implicit", archetype: "chart", claim: "k", caption: "c", width: "narrow" })
+  expect(readFileSync(join(WS, "figures", "explicit", "figure.html"), "utf8")).toBe(
+    readFileSync(join(WS, "figures", "implicit", "figure.html"), "utf8"),
+  )
+})
+
 test("scaffold refuses to overwrite an existing figure", async () => {
   await scaffold(WS, { name: "fig01-demo", archetype: "gallery", claim: "c", caption: "c", width: "full" })
   expect(scaffold(WS, { name: "fig01-demo", archetype: "gallery", claim: "c", caption: "c", width: "full" })).rejects.toThrow(/exists/)

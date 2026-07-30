@@ -20,6 +20,9 @@ test("dist layout is complete", () => {
     "render-worker.mjs",
     "assets/tokens.css",
     "assets/lib/katex/katex.mjs",
+    // The canvas is what EVERY html scaffold copies unless `from` names otherwise, so a
+    // bundle missing it fails on the first figure the user asks for, not on an edge case.
+    "templates/canvas/figure.html",
     "templates/schematic/figure.html",
     // The mpl engine's runtime: the style module figure.py imports, the face matplotlib
     // registers and the browser resolves, and the template scaffold copies. A packaged

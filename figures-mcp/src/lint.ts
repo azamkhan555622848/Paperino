@@ -49,7 +49,7 @@ export type LintResult = { passed: boolean; errors: LintError[]; exemptions: Exe
  * the box is clipped at compile time). No creative intent requires any of them, so an
  * attempt to declare one is itself a finding.
  */
-const ABSOLUTE_RULES = ["overflow", "min-type-size", "provenance", "font-allowlist"] as const
+export const ABSOLUTE_RULES = ["overflow", "min-type-size", "provenance", "font-allowlist"] as const
 
 export type LintInput = {
   source: string

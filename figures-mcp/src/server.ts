@@ -6,6 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { parse } from "yaml"
 import { scaffold } from "./scaffold"
+import { PRIMITIVE_CATALOGUE } from "./catalogue"
 import { render } from "./render"
 import { lint } from "./lint"
 import { dataQuery } from "./data-query"
@@ -28,11 +29,27 @@ server.registerTool(
   "figure_scaffold",
   {
     description:
-      "Create a new figure from an archetype template (schematic|gallery|chart|table) on the engine YOU pick (html|mpl — see the engine field; plots need mpl). Write the claim — the one sentence the figure must demonstrate — BEFORE designing. Vendors tokens.css + lib/ + fonts/ into the workspace on first use.",
+      "Create a new figure on the engine YOU pick (html|mpl — see the engine field; plots need mpl). " +
+      "The html engine gives you a BLANK CANVAS plus the primitive catalogue, and you compose the " +
+      "structure this figure needs; `from` seeds an archetype's layout instead, if you want one. " +
+      "Write the claim — the one sentence the figure must demonstrate — BEFORE designing. " +
+      "Vendors tokens.css + lib/ + fonts/ into the workspace on first use.",
     inputSchema: {
       workspace: ws,
       name: figName,
-      archetype: z.enum(["schematic", "gallery", "chart", "table"]),
+      archetype: z
+        .enum(["schematic", "gallery", "chart", "table"])
+        .describe(
+          "What KIND of figure this is. It steers lint and review; it does NOT dictate the layout — see `from`.",
+        ),
+      from: z
+        .enum(["canvas", "schematic", "chart", "table", "gallery"])
+        .optional()
+        .describe(
+          "Optional STARTING POINT for figure.html (html engine only). Omit for a blank canvas — you " +
+            "compose the layout, which is usually what a figure built around one specific claim needs. " +
+            "Name an archetype only to start from its structure and edit it down.",
+        ),
       engine: z
         .enum(["html", "mpl"])
         .default("html")
@@ -65,7 +82,12 @@ server.registerTool(
           `(ACCENT, ACCENT_WARM, MUTED, GRID, INK), and you never set an rcParam or call savefig — ` +
           `figure() and save() own the print-true size and the SVG/PDF font modes. Put numbers in ` +
           `data.json, then figure_render.`
-        : `scaffolded ${figureDir}. Edit figure.html (layout=HTML/flex/grid, annotations=lib/annot.js, colors=var(--…) only), put numbers in data.json, then figure_render.`,
+        : [
+            `scaffolded ${figureDir}. Edit figure.html (layout=HTML/flex/grid, annotations=lib/annot.js, ` +
+              `colors=var(--…) only), put numbers in data.json, then figure_render.`,
+            "",
+            PRIMITIVE_CATALOGUE,
+          ].join("\n"),
     )
   },
 )

@@ -61,7 +61,9 @@ test(
   async () => {
     for (const archetype of ["schematic", "gallery", "chart", "table"] as const) {
       const name = `fig-${archetype}`
-      await scaffold(WS, { name, archetype, claim: "c", caption: "c", width: "narrow" })
+      // `from` is what asks for the template now; the default scaffold is a blank canvas,
+      // which has no text and would make every assertion below vacuous.
+      await scaffold(WS, { name, archetype, from: archetype, claim: "c", caption: "c", width: "narrow" })
       if (archetype === "gallery")
         writeFileSync(join(WS, "figures", name, "data.json"), JSON.stringify({ items: [{ title: "T", body: "b" }] }))
       if (archetype === "chart")
@@ -199,8 +201,12 @@ test(
 test(
   "a JS error in figure.html returns ok:false with console output",
   async () => {
-    await scaffold(WS, { name: "fig-broken", archetype: "schematic", claim: "c", caption: "c", width: "narrow" })
+    // Seeded from the schematic template on purpose: this test breaks an arrow that exists,
+    // and the default canvas has none — the substitution would silently no-op and the render
+    // would succeed, testing nothing.
+    await scaffold(WS, { name: "fig-broken", archetype: "schematic", from: "schematic", claim: "c", caption: "c", width: "narrow" })
     const html = readFileSync(join(WS, "figures", "fig-broken", "figure.html"), "utf8")
+    expect(html).toContain("#box-b")
     writeFileSync(join(WS, "figures", "fig-broken", "figure.html"), html.replace("#box-b", "#does-not-exist"))
     const result = await render(WS, "fig-broken")
     expect(result.ok).toBe(false)

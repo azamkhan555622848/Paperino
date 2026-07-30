@@ -44,7 +44,10 @@ for (const archetype of ["schematic", "gallery", "chart", "table"] as const) {
     `${archetype} template renders and lints clean out of the box`,
     async () => {
       const ws = mkdtempSync(join(tmpdir(), `figtpl-${archetype}-`))
-      await scaffold(ws, { name: "fig-t", archetype, claim: "c", caption: "cap", width: "full" })
+      // `from` is now REQUIRED to get a template: the default is the blank canvas. Without
+      // it this loop scaffolded four identical empty pages and stopped testing templates at
+      // all, while still passing — the most expensive kind of green.
+      await scaffold(ws, { name: "fig-t", archetype, from: archetype, claim: "c", caption: "cap", width: "full" })
       writeFileSync(join(ws, "figures", "fig-t", "data.json"), JSON.stringify(DATA[archetype]))
 
       const result = await render(ws, "fig-t")
@@ -63,6 +66,29 @@ for (const archetype of ["schematic", "gallery", "chart", "table"] as const) {
   )
 }
 
+// The DEFAULT scaffold, which is now what almost every figure starts from. An empty page
+// still has to survive the render worker (it measures content bottom, so a zero-height
+// figure is a real edge case) and come back with no findings — a canvas that lints dirty on
+// arrival would train the agent to treat lint output as noise.
+test(
+  "the blank canvas renders and lints clean out of the box",
+  async () => {
+    const ws = mkdtempSync(join(tmpdir(), "figtpl-canvas-"))
+    await scaffold(ws, { name: "fig-t", archetype: "schematic", claim: "c", caption: "cap", width: "full" })
+    const result = await render(ws, "fig-t")
+    if (!result.ok) throw new Error(`render failed: ${result.error}\n${result.consoleOutput.join("\n")}`)
+    const dir = join(ws, "figures", "fig-t")
+    const { errors } = lint({
+      source: readFileSync(join(dir, "figure.html"), "utf8"),
+      meta: parse(readFileSync(join(dir, "meta.yaml"), "utf8")),
+      data: {},
+      manifest: JSON.parse(readFileSync(result.bboxes, "utf8")),
+    })
+    expect(errors).toEqual([])
+  },
+  120_000,
+)
+
 // Lint enforces what is machine-checkable; the templates must also TEACH the idiom,
 // because whatever they demonstrate is what the agent copies. (These would pass on the
 // v1 templates' tokens alone, so assert the teaching explicitly.)
@@ -71,7 +97,7 @@ test("templates teach the paper idiom", () => {
 
   // math goes through KaTeX, never monospace pseudo-math
   expect(tpl("schematic")).toContain('class="math"')
-  for (const a of ["schematic", "gallery", "chart", "table"]) {
+  for (const a of ["canvas", "schematic", "gallery", "chart", "table"]) {
     expect(tpl(a)).toContain("renderMath")
     // no in-figure headline: the caption explains, the figure shows
     expect(tpl(a)).not.toMatch(/<h1|<h2\b/)
