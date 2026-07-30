@@ -129,10 +129,19 @@ export type RouteInput = {
 export type RouteResult = {
   points: Point[]
   kind: "straight" | "ortho" | "detour" | "blocked"
-  /** Selectors the chosen route still intersects. Empty when clear. */
+  /**
+   * What the chosen route still intersects — obstacle selectors, plus `TEXT_BLOCKER` when a
+   * text rect is what is in the way. Empty when clear, and NEVER empty when `kind` is
+   * `"blocked"`: the reason is reported to the author, and a blocked route with an empty list
+   * reads downstream as "degenerate", which sends them hunting a too-short edge that does not
+   * exist. Text rects come from the manifest walk and carry no selector, hence the marker.
+   */
   blocked: string[]
   degenerate: boolean
 }
+
+/** Stand-in selector for a text rect, which has none. See `RouteResult.blocked`. */
+export const TEXT_BLOCKER = "a text label"
 
 export function routePath(input: RouteInput): RouteResult {
   const { from, to, obstacles, textRects, clearance, lanes } = input
@@ -161,13 +170,22 @@ export function routePath(input: RouteInput): RouteResult {
   type Candidate = {
     points: Point[]
     kind: RouteResult["kind"]
-    /** Re-make this route with its free corridor moved by `delta`. Lane separation uses it. */
-    shift: (delta: number) => Point[]
+    /**
+     * Re-make this route with its free corridor moved by `delta`. Lane separation uses it.
+     * `null` means IMMOVABLE, and the straight candidate under `mode: "straight"` is exactly
+     * that: every displacement of a straight edge is a bend, so a lane offset would hand back
+     * a 4-point Z reported as "ortho" — a different figure element, not a nudge. Two straight
+     * edges in one gutter therefore stay coincident. That is the author's declared geometry;
+     * silently redrawing it is the thing `mode: "straight"` exists to forbid.
+     */
+    shift: ((delta: number) => Point[]) | null
   }
   const candidates: Candidate[] = []
-  if (input.mode !== "ortho") candidates.push({ points: [a, b], kind: "straight", shift: acrossFlow })
   // mode 'straight' means straight or nothing — an author who asked for a straight edge gets
-  // a reported blocker, not a silent Z they did not ask for.
+  // a reported blocker, not a silent Z they did not ask for. That holds for lane separation
+  // too, which is why the shift is withheld rather than the Z candidates merely being skipped.
+  if (input.mode !== "ortho")
+    candidates.push({ points: [a, b], kind: "straight", shift: input.mode === "straight" ? null : acrossFlow })
   if (input.mode !== "straight") {
     const z: Candidate = { points: hvh(midX), kind: "ortho", shift: (d) => hvh(midX + d) }
     const zAlt: Candidate = { points: vhv(midY), kind: "ortho", shift: (d) => vhv(midY + d) }
@@ -223,9 +241,10 @@ export function routePath(input: RouteInput): RouteResult {
 
   let points = best.points
   let kind = best.kind
+  const shift = best.shift
   if (bestScore > 0) {
     kind = "blocked"
-  } else if (lanes.length) {
+  } else if (lanes.length && shift) {
     // Lane separation. A route sharing ink with N already-drawn corridors steps N lanes off,
     // sign alternating so a bundle spreads both ways instead of marching in one direction.
     // Deterministic, per the spec: no packing search.
@@ -241,7 +260,7 @@ export function routePath(input: RouteInput): RouteResult {
     for (const l of lanes) if (polylineHits(points, corridorRects(l), 0) > 0) occupied++
     const step = (input.strokeWidth ?? 1) * LANE_STEP_FACTOR
     for (let lane = occupied; lane >= 1; lane--) {
-      const shifted = best.shift(lane * step * (lane % 2 === 0 ? -1 : 1))
+      const shifted = shift(lane * step * (lane % 2 === 0 ? -1 : 1))
       if (score(shifted) > 0) continue
       points = shifted
       // A displaced straight is a Z now; reporting it as "straight" would misdescribe the ink.
@@ -250,10 +269,14 @@ export function routePath(input: RouteInput): RouteResult {
     }
   }
 
-  const blocked =
-    bestScore > 0
-      ? obstacles.filter((o) => polylineHits(points, [o.rect], clearance) > 0).map((o) => o.selector)
-      : []
+  const blocked: string[] = []
+  if (bestScore > 0) {
+    for (const o of obstacles) if (polylineHits(points, [o.rect], clearance) > 0) blocked.push(o.selector)
+    // Text is a blocker in `score` and in the detour set, so it must be a blocker in the
+    // report as well — a caption across the gutter is the single most common thing that makes
+    // an edge unroutable, and it is the one blocker with no selector to name.
+    if (polylineHits(points, textRects, clearance) > 0) blocked.push(TEXT_BLOCKER)
+  }
   return { points, kind, blocked, degenerate }
 }
 

@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test"
-import { anchorAt, autoSides, parsePort, pickPlacement, polylineHits, routePath, segmentHitsRect } from "../src/route"
+import {
+  anchorAt,
+  autoSides,
+  parsePort,
+  pickPlacement,
+  polylineHits,
+  routePath,
+  segmentHitsRect,
+  TEXT_BLOCKER,
+} from "../src/route"
 
 const R = (x: number, y: number, w: number, h: number) => ({ x, y, w, h })
 
@@ -96,6 +105,52 @@ describe("routePath", () => {
       lanes: [{ points: a.points, width: 1 }],
     })
     expect(b.points).not.toEqual(a.points)
+  })
+
+  test("mode 'straight' is never bent into a Z to make a lane", () => {
+    // Two straight edges fanning from one encoder to two heads. The second one shares the
+    // first's corridor by construction — they leave the same anchor — and a straight edge has
+    // no free corridor to move, so the only honest answers are "leave it straight" or
+    // "blocked". Displacing it produces a 4-point Z reported as "ortho": not a lane nudge but
+    // a different figure element, from an author who asked for a diagonal.
+    const encoder = R(12, 100, 90, 40)
+    const headA = R(240, 100, 90, 40)
+    const headB = R(240, 180, 90, 40)
+    const common = { obstacles: [], textRects: [], clearance: 2.5, strokeWidth: 1, mode: "straight" as const }
+    const first = routePath({ ...common, from: encoder, to: headA, lanes: [] })
+    expect(first.kind).toBe("straight")
+    expect(first.points).toEqual([[102, 120], [240, 120]])
+
+    const second = routePath({ ...common, from: encoder, to: headB, lanes: [{ points: first.points, width: 1 }] })
+    expect(second.kind).toBe("straight")
+    expect(second.points).toEqual([[102, 120], [240, 200]])
+
+    // Same defect in its smallest form: one occupied lane, collinear edge.
+    const same = routePath({
+      ...common,
+      from: R(0, 0, 60, 40),
+      to: R(200, 0, 60, 40),
+      lanes: [{ points: [[60, 20], [200, 20]], width: 1 }],
+    })
+    expect(same.kind).toBe("straight")
+    expect(same.points).toEqual([[60, 20], [200, 20]])
+  })
+
+  test("a route blocked only by text still names a blocker", () => {
+    // A caption band spanning the whole gutter. No Z clears it and a detour would be longer
+    // than the length cap, so the edge is unroutable — and the author has to be told that TEXT
+    // is in the way. `blocked: []` reads downstream as "degenerate", which is a different
+    // defect and sends the author looking for a too-short edge that does not exist.
+    const caption = R(0, 40, 400, 40)
+    const r = routePath({ ...base, from: R(150, 0, 60, 30), to: R(150, 120, 60, 30), obstacles: [], textRects: [caption] })
+    expect(r.kind).toBe("blocked")
+    expect(r.degenerate).toBe(false)
+    expect(r.blocked.length).toBeGreaterThan(0)
+    expect(r.blocked).toEqual([TEXT_BLOCKER])
+    // Real selectors still come first, so the author gets the name when there is one.
+    const wall = { selector: "#wall", rect: R(0, 40, 400, 40) }
+    const both = routePath({ ...base, from: R(150, 0, 60, 30), to: R(150, 120, 60, 30), obstacles: [wall], textRects: [caption] })
+    expect(both.blocked).toEqual(["#wall", TEXT_BLOCKER])
   })
 
   test("degenerate edges are flagged, not thrown", () => {
